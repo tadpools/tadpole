@@ -122,6 +122,25 @@ What CI runs on every PR, in order:
 
 Run them before pushing and CI is a formality.
 
+## The live gate
+
+One test touches real Discord, and only on explicit request:
+`test/tadpole/live_test.gleam`. Without `TADPOLE_TOKEN` set it prints a
+one-line note and passes, so CI never needs a secret and never sees a
+network. With the token set, the same suite runs CONTRIBUTING's publish
+gate end to end:
+
+    TADPOLE_TOKEN="your bot token" gleam test
+
+It authenticates over REST (`get_current_user`, proving the token),
+connects the gateway and waits for READY as the typed event (proving
+hello, identify, and the shard's event path), checks both users carry
+the same id, then closes. A wrong token fails with a 401 and a hint; a
+silent gateway fails with a READY timeout and next steps. The token is
+read from the environment only and never printed. This is the command
+to run before tagging a release; the gitignored dev/ scripts remain the
+way to watch a bot run interactively.
+
 ## What the suite does not cover yet
 
 - a shard actor test with an injectable transport: the frame.parse to
