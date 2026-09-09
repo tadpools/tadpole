@@ -1,0 +1,20 @@
+# Normalize line endings: LF in the repo, native in the working tree.
+* text=auto
+
+# Source and config always LF
+*.gleam text
+*.erl text
+*.toml text
+*.yml text
+*.yaml text
+*.md text
+*.json text
+
+# Windows scripts
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary
+*.png binary
+*.ico binary
+*.gif binary

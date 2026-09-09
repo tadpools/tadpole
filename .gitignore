@@ -1,0 +1,30 @@
+# Gleam build artifacts
+build/
+
+# Erlang crash dumps
+erl_crash.dump
+
+# Live-test playground: real-token smoke scripts, run by hand only (see README)
+dev/
+scripts/run-live-tests.ps1
+
+# Local-only dev notes and roadmap (see NOTES.md)
+NOTES.md
+*.local.md
+
+# Environment and secrets — tokens NEVER live in committed files
+.env
+.env.*
+*.local
+
+# Editor cruft
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# OS cruft
+.DS_Store
+Thumbs.db
+Desktop.ini

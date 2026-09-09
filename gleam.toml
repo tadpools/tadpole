@@ -1,0 +1,18 @@
+name = "tadpole"
+version = "2026.2.0"
+description = "A Discord library for Gleam, built on Erlang/OTP. Every frog starts as a tadpole."
+licences = ["Apache-2.0"]
+target = "erlang"
+
+[dependencies]
+gleam_stdlib = ">= 0.40.0"
+gleam_json = ">= 2.0.0"
+gleam_http = ">= 3.0.0"
+gleam_httpc = ">= 2.0.0"
+gleam_otp = ">= 1.3.0 and < 2.0.0"
+stratus = ">= 3.0.0 and < 4.0.0"
+gleam_erlang = ">= 1.3.0 and < 2.0.0"
+logging = ">= 1.5.0 and < 2.0.0"
+
+[dev-dependencies]
+gleeunit = ">= 1.0.0"

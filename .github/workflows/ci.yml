@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          gleam-version: "1.18"
+
+      - run: gleam deps download
+
+      # The quality bar (CONTRIBUTING.md): zero warnings, all tests green.
+      - name: Build (zero warnings tolerated)
+        run: |
+          gleam build 2> build_warnings.txt || true
+          if grep -q "warning:" build_warnings.txt; then
+            echo "::error::Compiler warnings are not allowed in CI"
+            cat build_warnings.txt
+            exit 1
+          fi
+          rm build_warnings.txt
+
+      - name: Test
+        run: gleam test
+
+      - name: Check formatting
+        run: |
+          gleam format
+          git diff --exit-code -- '*.gleam' || {
+            echo '::error::Code is not gleam-format canonical. Run: gleam format'
+            exit 1
+          }
+
+      - name: Docs build
+        run: gleam docs build
