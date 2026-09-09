@@ -201,7 +201,8 @@ happens; it cannot check the portal for you.
     gleam test
 
 All tests run against recorded fixtures and canned HTTP responses. No
-network in CI.
+network in CI. The suite has three layers (unit, property, contract);
+TESTING.md is the map: what each layer is for and how to add to it.
 
 Smoke runs against real Discord happen by hand, never from CI, with a
 token in `TADPOLE_TOKEN`. The smoke scripts live in dev/ and are not

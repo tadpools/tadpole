@@ -21,6 +21,9 @@ and CI enforces the distinction via `scripts/check-warnings.sh`.
 
 ## Testing requirements
 
+The map to the suite (layers, layout, how to add property tests and
+fixtures) lives in TESTING.md. The rules:
+
 1. **Every public function has at least one test** covering its primary path.
 2. **Every failure mode documented in a doc comment maps to a test**: if
    `/// ## Failure modes` says X can happen, a test proves the error carries
