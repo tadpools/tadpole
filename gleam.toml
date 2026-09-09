@@ -3,6 +3,7 @@ version = "2026.2.0"
 description = "A Discord library for Gleam, built on Erlang/OTP. Every frog starts as a tadpole."
 licences = ["Apache-2.0"]
 target = "erlang"
+repository = { type = "github", user = "tadpools", repo = "tadpole" }
 
 [dependencies]
 gleam_stdlib = ">= 0.40.0"

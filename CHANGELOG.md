@@ -4,10 +4,11 @@ Versions are calendar-based (YYYY.MILESTONE.PATCH). Before the first
 publish there are no compatibility promises; the tests and this changelog
 are the contract.
 
-## 2026.2.0 first-swim (unreleased-pending-live-check)
+## 2026.2.0 - first-swim (unreleased, pending live check)
 
 The first vertical slice: a bot can connect to the gateway, receive
-events, and make REST calls. 271 tests. Not on Hex until the live check
+events, and make REST calls. All tests run against recorded fixtures.
+Not on Hex until the live check
 in CONTRIBUTING.md passes (one real gateway roundtrip plus one real
 REST call), and it has not run yet.
 

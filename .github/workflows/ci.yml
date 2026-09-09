@@ -5,6 +5,15 @@ on:
     branches: [main]
   pull_request:
 
+# The workflow only needs to read the repo.
+permissions:
+  contents: read
+
+# Superseded runs on the same ref cancel instead of queueing.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
