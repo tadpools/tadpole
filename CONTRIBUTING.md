@@ -15,7 +15,9 @@ gleam docs build # renders without error
 
 **Zero warnings is a hard rule.** Unused imports, unused variables, and
 incomplete patterns are design smells, not noise. Fix them, or `_`-prefix
-deliberately with a comment explaining why.
+deliberately with a comment explaining why. The rule covers code this repo
+owns (`src/`, `test/`); warnings from dependency sources are upstream's,
+and CI enforces the distinction via `scripts/check-warnings.sh`.
 
 ## Testing requirements
 

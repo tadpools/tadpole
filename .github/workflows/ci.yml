@@ -18,16 +18,10 @@ jobs:
 
       - run: gleam deps download
 
-      # The quality bar (CONTRIBUTING.md): zero warnings, all tests green.
-      - name: Build (zero warnings tolerated)
-        run: |
-          gleam build 2> build_warnings.txt || true
-          if grep -q "warning:" build_warnings.txt; then
-            echo "::error::Compiler warnings are not allowed in CI"
-            cat build_warnings.txt
-            exit 1
-          fi
-          rm build_warnings.txt
+      # The quality bar (CONTRIBUTING.md): zero warnings in Tadpole's own
+      # code. Warnings from dependency sources are upstream's to fix.
+      - name: Build (zero warnings in tadpole code)
+        run: sh scripts/check-warnings.sh
 
       - name: Test
         run: gleam test
