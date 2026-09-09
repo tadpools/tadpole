@@ -150,6 +150,22 @@ pub fn fixture_unknown_field_added_survives_test() {
   |> should.equal("a field Discord has not shipped yet must not break decoding")
 }
 
+pub fn fixture_hello_null_fields_parses_test() {
+  // The first frame every real connection receives, exactly as Discord
+  // sends it: t and s are null, not absent. This shape once failed the
+  // parse and the whole connection sat deaf; see the module docs on
+  // frame.parse.
+  let payload = fixtures.must_load("hello_null_fields.json")
+  let assert Ok(frame) = frame.parse(payload)
+  frame.opcode |> should.equal(opcode.Hello)
+  frame.sequence |> should.equal(None)
+  frame.event_name |> should.equal(None)
+
+  // The shard reads the interval straight from this frame.
+  let assert Ok(interval) = frame.hello_heartbeat_interval(payload)
+  interval |> should.equal(41_250)
+}
+
 pub fn fixture_rate_limit_429_sets_the_window_test() {
   let body = fixtures.must_load("rate_limit_429.json")
 
