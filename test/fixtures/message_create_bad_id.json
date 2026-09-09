@@ -1,0 +1,18 @@
+{
+  "t": "MESSAGE_CREATE",
+  "s": 6,
+  "op": 0,
+  "d": {
+    "id": "110000000000000003",
+    "channel_id": "400000000000000001",
+    "author": {
+      "id": "not-a-snowflake",
+      "username": "corrupted",
+      "global_name": null,
+      "avatar": null,
+      "bot": false
+    },
+    "content": "this message must fail to decode",
+    "timestamp": "2026-09-09T12:04:00.000000+00:00"
+  }
+}

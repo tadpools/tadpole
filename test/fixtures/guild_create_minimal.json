@@ -1,0 +1,10 @@
+{
+  "t": "GUILD_CREATE",
+  "s": 8,
+  "op": 0,
+  "d": {
+    "id": "300000000000000001",
+    "name": "The Pond",
+    "member_count": 42
+  }
+}
