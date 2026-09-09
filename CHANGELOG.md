@@ -4,19 +4,19 @@ Versions are calendar-based (YYYY.MILESTONE.PATCH). Before the first
 publish there are no compatibility promises; the tests and this changelog
 are the contract.
 
-## 2026.2.0 — first-swim (unreleased-pending-live-check)
+## 2026.2.0 first-swim (unreleased-pending-live-check)
 
 The first vertical slice: a bot can connect to the gateway, receive
 events, and make REST calls. 271 tests. Not on Hex until the live check
-in CONTRIBUTING.md passes — one real gateway roundtrip plus one real
-REST call — and it has not run yet.
+in CONTRIBUTING.md passes (one real gateway roundtrip plus one real
+REST call), and it has not run yet.
 
 - model objects and decoders: user, message (full form plus the partial
   MESSAGE_UPDATE form), guild with its unavailable form, channel, and
   the shared decode plumbing that reports where a payload stopped
   matching (tadpole/model).
-- REST execution: requests run through an injected transport —
-  gleam_httpc ships as the default — with 429 retries, per-session
+- REST execution: requests run through an injected transport (gleam_httpc
+  ships as the default) with 429 retries, per-session
   rate-limit bookkeeping, and a shared status-0 convention for "no HTTP
   response happened" (tadpole/rest/execute).
 - REST endpoint bindings: GET /users/@me, send a message, reply

@@ -16,16 +16,16 @@ instead. What that buys, concretely:
   Discord after your bot has been live for a week.
 
 - **Events are Gleam types, not JSON maps.** The handler matches on
-  `Ready`, `MessageCreate`, `Resumed` — real variants, not dict
-  lookups (tadpole/gateway/events). Events Tadpole does not recognize
+  `Ready`, `MessageCreate`, `Resumed`. Real variants, not dict lookups
+  (tadpole/gateway/events). Events Tadpole does not recognize
   arrive as `Unknown` with the raw payload attached: a new Discord
   event degrades to one value you can log, never a crash.
 
 - **Errors are data, and they keep secrets.** Every failure is a typed
   variant carrying its context: `RateLimited` has the retry time in
   milliseconds, `RestStatus` has the route, status, and Discord's
-  error body. Match and recover without parsing strings. The opt-in
-  renderer prints what happened, why, and what to try — and redacts
+  error body.   Match and recover without parsing strings. The opt-in
+  renderer prints what happened, why, and what to try, and it redacts
   the token in every path, including paths that only trigger during a
   bug (tadpole/error, tadpole/error/render).
 
@@ -42,12 +42,12 @@ instead. What that buys, concretely:
   buckets without notice; a hardcoded table rots, so there isn't one.
 
 - **The beginner API is not a cage.** `bot.run` is a thin layer over
-  the same public modules it drives — it calls `shard.start` exactly
+  the same public modules it drives; it calls `shard.start` exactly
   the way you would (tadpole/bot). When one config and one handler
   stop being enough, the layer below is already public. No fork, no
   reaching into internals.
 
-Also in the box: endpoint bindings for the first hour of any bot —
+Also in the box: endpoint bindings for the first hour of any bot:
 `GET /users/@me`, post a message, reply (tadpole/rest/endpoints);
 model objects with decoders that report where a payload stopped
 matching (tadpole/model); and config validation that redacts the token
@@ -67,7 +67,7 @@ identify, heartbeat, resume after a disconnect, and receive typed events.
 REST calls run over gleam_httpc with rate-limit handling learned from
 response headers. The echo bot below is a complete program.
 
-Not here yet — do not assume it:
+Not here yet, so do not assume it:
 
 - multi-shard. One shard. A config asking for more is refused with
   `ShardingNotSupported` before anything connects.
@@ -82,7 +82,7 @@ Not here yet — do not assume it:
 
 One honest caveat: everything above is tested against recorded payload
 shapes and canned HTTP responses. It has not run against real Discord
-from CI, and the package is not on Hex yet — the publish gate in
+from CI, and the package is not on Hex yet. The publish gate in
 CONTRIBUTING.md requires one live roundtrip (gateway connect through
 ready, plus one real REST call) first, and that check has not happened
 yet. Adjust trust accordingly.
@@ -91,12 +91,14 @@ yet. Adjust trust accordingly.
 
 Gleam 1.18+ and Erlang/OTP.
 
-    gleam add tadpole        # works once the live check below has passed
+    gleam add tadpole        # not on Hex yet; the publish gate comes first
     $env:TADPOLE_TOKEN = "your-bot-token"   # PowerShell
 
-This is dev/echo_bot.gleam from the repo — the repo copy is the one kept
-in sync. The `env` helper at the bottom is the only Erlang in the
-program; tadpole ships it, though it is private and allowed to move.
+This program lives locally in dev/echo_bot.gleam. That folder stays out
+of version control because it holds token-driven scripts, so the listing
+above is the copy to trust. The `env` helper at the bottom is the only
+Erlang in the program; tadpole ships it, though it is private and
+allowed to move.
 
 ```gleam
 import gleam/io
@@ -189,6 +191,11 @@ fn join_names(bits: List(Int)) -> String {
 fn env(name: String) -> Result(String, Nil)
 ```
 
+To run it against this repo's source, save the program as
+dev/echo_bot.gleam in your clone. The dev/ folder is gitignored, so it
+is yours to create, and `gleam run -m echo_bot` picks the module up
+from there:
+
     gleam run -m echo_bot
 
 Message Content is a privileged intent. Enable it in the Discord
@@ -203,8 +210,10 @@ happens; it cannot check the portal for you.
 
 271 tests, all against fixtures. No network in CI.
 
-Smoke runs against real Discord, by hand, with a token in
-`TADPOLE_TOKEN` — both exit immediately without it:
+Smoke runs against real Discord happen by hand, never from CI, with a
+token in `TADPOLE_TOKEN`. The smoke scripts live in dev/ and are not
+part of the published tree; they are how the publish gate gets run.
+Both exit immediately without the token set:
 
     gleam run -m echo_bot     # the echo bot: repeats non-bot messages
     gleam run -m smoke_gw     # connects one shard, prints events for 60s, exits
