@@ -1,8 +1,64 @@
-# tadpole
+﻿# tadpole
 
 A Discord library for Gleam. Every frog starts as a tadpole.
 
 ![](assets/tadpole.gif)
+
+## why tadpole
+
+Discord libraries usually grow out of dynamically typed ecosystems, and
+their APIs carry the accent. Tadpole starts from Gleam and the BEAM
+instead. What that buys, concretely:
+
+- **IDs you cannot mix up.** `UserId`, `GuildId`, `ChannelId`,
+  `MessageId` are opaque types (tadpole/types/ids). Passing a `GuildId`
+  where a `ChannelId` belongs is a compile error, not a 400 from
+  Discord after your bot has been live for a week.
+
+- **Events are Gleam types, not JSON maps.** The handler matches on
+  `Ready`, `MessageCreate`, `Resumed` — real variants, not dict
+  lookups (tadpole/gateway/events). Events Tadpole does not recognize
+  arrive as `Unknown` with the raw payload attached: a new Discord
+  event degrades to one value you can log, never a crash.
+
+- **Errors are data, and they keep secrets.** Every failure is a typed
+  variant carrying its context: `RateLimited` has the retry time in
+  milliseconds, `RestStatus` has the route, status, and Discord's
+  error body. Match and recover without parsing strings. The opt-in
+  renderer prints what happened, why, and what to try — and redacts
+  the token in every path, including paths that only trigger during a
+  bug (tadpole/error, tadpole/error/render).
+
+- **The reconnect loop already exists.** The shard is an OTP actor
+  that owns its session: heartbeats on Discord's interval with zombie
+  detection, per-close-code decisions, resume when the session allows
+  it and a clean reidentify when it does not, backoff between attempts
+  (tadpole/gateway/shard). A dropped websocket is handled; it is not a
+  dead bot you find in the morning.
+
+- **Rate limits are learned, not hardcoded.** Buckets, remaining
+  counts, and retry times come from Discord's response headers and 429
+  bodies at runtime (tadpole/rest/rate_limit). Discord reshuffles
+  buckets without notice; a hardcoded table rots, so there isn't one.
+
+- **The beginner API is not a cage.** `bot.run` is a thin layer over
+  the same public modules it drives — it calls `shard.start` exactly
+  the way you would (tadpole/bot). When one config and one handler
+  stop being enough, the layer below is already public. No fork, no
+  reaching into internals.
+
+Also in the box: endpoint bindings for the first hour of any bot —
+`GET /users/@me`, post a message, reply (tadpole/rest/endpoints);
+model objects with decoders that report where a payload stopped
+matching (tadpole/model); and config validation that redacts the token
+even in its own describe output (tadpole.describe_config).
+
+The name is the design constraint. A first bot and a sharded
+production bot are supposed to be the same framework at different
+stages: no stage requires another, growth is additive, and nothing you
+wrote at hello-world gets renamed when you need more. That contract
+lives in CONTRIBUTING.md and the versioning policy, and reviewers hold
+changes to it.
 
 ## where this actually is
 
@@ -30,35 +86,6 @@ from CI, and the package is not on Hex yet — the publish gate in
 CONTRIBUTING.md requires one live roundtrip (gateway connect through
 ready, plus one real REST call) first, and that check has not happened
 yet. Adjust trust accordingly.
-
-## what you get
-
-- typed events: `Ready`, `MessageCreate`, `MessageUpdate`, `MessageDelete`,
-  `Resumed`, `GuildCreate`, `GuildDelete`. Anything else arrives as
-  `Unknown` with the raw payload attached, never a crash
-  (tadpole/gateway/events).
-- the beginner runner: `start`, `run`, `send_message`, `reply`, `stop`.
-  One config, one handler. Events reach the handler one at a time in
-  arrival order — a slow handler delays the queue behind it, and a
-  handler crash takes the bot down instead of leaving it silently dead
-  (tadpole/bot).
-- a gateway shard that connects, heartbeats on Discord's interval,
-  identifies or resumes, decides per close code, and reconnects with
-  backoff (tadpole/gateway/shard, tadpole/gateway/transport).
-- REST execution with an injectable transport — gleam_httpc ships as the
-  default — and 429 retries (tadpole/rest/execute).
-- rate limits taken from response headers and 429 bodies only. No
-  hardcoded table: Discord reshuffles buckets without notice
-  (tadpole/rest/rate_limit).
-- endpoint bindings for the first hour of any bot: `GET /users/@me`,
-  post a message, reply (tadpole/rest/endpoints).
-- model objects — user, message (full and the partial MESSAGE_UPDATE
-  form), guild, channel — with decoders that report where a payload
-  stopped matching (tadpole/model).
-- opaque IDs, so a `UserId` cannot be passed where a `GuildId` goes
-  (tadpole/types/ids).
-- a typed error type rendered for humans, with the token redacted
-  everywhere it might show up (tadpole/error, tadpole/error/render).
 
 ## a whole bot
 
@@ -184,11 +211,6 @@ Smoke runs against real Discord, by hand, with a token in
 
 Windows note: the Erlang installer doesn't add itself to PATH. Add
 `C:\Program Files\Erlang OTP\bin` yourself.
-
-## why "tadpole"
-
-Small bots should be able to grow without a rewrite. The mascot is a
-tadpole. That's the whole story.
 
 ## contributing
 
