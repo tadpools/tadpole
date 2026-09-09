@@ -1,0 +1,43 @@
+{
+  "t": "MESSAGE_CREATE",
+  "s": 4,
+  "op": 0,
+  "d": {
+    "id": "110000000000000002",
+    "channel_id": "400000000000000001",
+    "guild_id": "300000000000000001",
+    "author": {
+      "id": "100000000000000002",
+      "username": "lilypad",
+      "global_name": "Lily Pad",
+      "avatar": "b_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
+      "bot": false,
+      "system": false
+    },
+    "content": "full pond message",
+    "timestamp": "2026-09-09T12:01:00.000000+00:00",
+    "edited_timestamp": "2026-09-09T12:02:00.000000+00:00",
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [
+      {
+        "id": "100000000000000001",
+        "username": "pond_bot",
+        "global_name": null,
+        "avatar": null,
+        "bot": true
+      }
+    ],
+    "mention_roles": ["500000000000000001", "500000000000000002"],
+    "attachments": [
+      {
+        "id": "600000000000000001",
+        "filename": "lilypad.png",
+        "size": 12345,
+        "url": "https://cdn.discordapp.com/attachments/400000000000000001/600000000000000001/lilypad.png"
+      }
+    ],
+    "pinned": false,
+    "type": 0
+  }
+}

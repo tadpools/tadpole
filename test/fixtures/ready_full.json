@@ -1,0 +1,31 @@
+{
+  "t": "READY",
+  "s": 2,
+  "op": 0,
+  "d": {
+    "v": 10,
+    "user": {
+      "id": "100000000000000001",
+      "username": "pond_bot",
+      "global_name": "Pond Bot",
+      "avatar": "a_9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c",
+      "bot": true,
+      "system": false
+    },
+    "guilds": [
+      { "id": "300000000000000001" },
+      { "id": "300000000000000002" }
+    ],
+    "session_id": "fixture-session-full",
+    "resume_gateway_url": "wss://gateway.discord.gg",
+    "session_type": "normal",
+    "application": {
+      "id": "200000000000000001",
+      "flags": 0
+    },
+    "geo_ordered_rtc_regions": [],
+    "shard": [0, 2],
+    "private_channels": [],
+    "_trace": ["[\"gateway\", \"fixture-prd-1\"]"]
+  }
+}

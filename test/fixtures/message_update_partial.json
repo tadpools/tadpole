@@ -1,0 +1,12 @@
+{
+  "t": "MESSAGE_UPDATE",
+  "s": 5,
+  "op": 0,
+  "d": {
+    "id": "110000000000000002",
+    "channel_id": "400000000000000001",
+    "content": "edited pond message",
+    "edited_timestamp": "2026-09-09T12:03:00.000000+00:00",
+    "pinned": true
+  }
+}

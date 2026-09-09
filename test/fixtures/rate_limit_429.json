@@ -1,0 +1,6 @@
+{
+  "message": "You are being rate limited.",
+  "code": 429,
+  "global": false,
+  "retry_after": 1.5
+}
