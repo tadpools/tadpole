@@ -1,8 +1,13 @@
 //// Shared plumbing for the model JSON decoders: snowflake ID fields and
 //// the wrapper that turns gleam/json parse errors into DecodeFailed.
-//// Nothing here knows about specific models. Later gateway and REST
-//// wiring calls these with the event name it knows; the model-level
-//// from_json helpers leave the event empty.
+//// Nothing here knows about specific models. Gateway and REST wiring
+//// call these with the event name they know; the model-level from_json
+//// helpers leave the event empty.
+////
+//// `from_json` takes either a bare event object or a full gateway frame
+//// envelope with the event object under `d`, because both shapes arrive
+//// in practice: the shard decodes dispatch frames as the envelope, the
+//// REST paths decode bare response objects.
 ////
 //// Internals: `snowflake_id` validates Discord's string ids inside the
 //// decoder pipeline (a non-snowflake string fails with the offending
@@ -50,7 +55,13 @@ pub fn snowflake_id(
 /// error.DecodeFailed. `event` is the gateway event name when known, for
 /// example Some("MESSAGE_CREATE"); None suits REST responses.
 ///
-/// The reported path is relative to the payload root: fields join with
+/// The payload may be a bare event object (what the model from_json
+/// helpers and the REST paths get) or a full gateway frame envelope with
+/// the event object under `d` (what frame.parse hands the shard). When
+/// the parsed JSON carries a `d` field, the decoder runs on that inner
+/// value; otherwise it runs on the payload as-is.
+///
+/// The reported path is relative to the event object: fields join with
 /// dots, list indices go in brackets (`author.id`, `mentions[0].username`),
 /// and a payload that is not JSON at all reports `$`. Only the first
 /// problem found is reported — fix it and re-run to see the next one.
@@ -59,31 +70,59 @@ pub fn from_json(
   payload: String,
   decoder: d.Decoder(t),
 ) -> Result(t, TadpoleError) {
-  case json.parse(payload, decoder) {
-    Ok(value) -> Ok(value)
+  case json.parse(payload, d.dynamic) {
+    Ok(dynamic) ->
+      case d.run(event_object(dynamic), decoder) {
+        Ok(value) -> Ok(value)
+        Error([]) ->
+          // decode.run only fails with at least one error collected, so
+          // this arm is a totality guard, not a reachable case.
+          Error(DecodeFailed(
+            event: event,
+            path: "$",
+            expected: "a payload matching the decoder",
+            got: "no error details",
+          ))
+        Error([first, ..]) -> {
+          let #(expected, got) = describe(first)
+          Error(DecodeFailed(
+            event: event,
+            path: path_text(first.path),
+            expected: expected,
+            got: got,
+          ))
+        }
+      }
     Error(json.UnexpectedEndOfInput) -> syntax_error(event, "truncated JSON")
     Error(json.UnexpectedByte(byte)) ->
       syntax_error(event, "invalid byte " <> byte)
     Error(json.UnexpectedSequence(sequence)) ->
       syntax_error(event, "invalid escape sequence " <> sequence)
-    Error(json.UnableToDecode([])) ->
-      // decode.run only fails with at least one error collected, so this
-      // arm is a totality guard, not a reachable case.
+    // d.dynamic never fails, so a parse of it cannot report UnableToDecode;
+    // this arm exists for exhaustiveness only.
+    Error(json.UnableToDecode(_)) ->
       Error(DecodeFailed(
         event: event,
         path: "$",
-        expected: "a payload matching the decoder",
-        got: "no error details",
+        expected: "a JSON payload",
+        got: "the payload did not match the decoder",
       ))
-    Error(json.UnableToDecode([first, ..])) -> {
-      let #(expected, got) = describe(first)
-      Error(DecodeFailed(
-        event: event,
-        path: path_text(first.path),
-        expected: expected,
-        got: got,
-      ))
-    }
+  }
+}
+
+/// The Dynamic the event decoder runs on: the `d` field's value when the
+/// payload is a gateway frame envelope, the payload itself when it is a
+/// bare event object. No event object in this library carries a `d`
+/// field of its own, so the presence of `d` is an envelope, and a null
+/// `d` fails the event decoder honestly at the root.
+fn event_object(dynamic: d.Dynamic) -> d.Dynamic {
+  let envelope_decoder = {
+    use inner <- d.field("d", d.dynamic)
+    d.success(inner)
+  }
+  case d.run(dynamic, envelope_decoder) {
+    Ok(inner) -> inner
+    Error(_) -> dynamic
   }
 }
 
