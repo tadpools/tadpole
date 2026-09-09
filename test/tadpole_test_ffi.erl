@@ -12,8 +12,18 @@
     events/0,
     reset/0,
     queue/1,
-    next/0
+    next/0,
+    get_env/1
 ]).
+
+%% Reads one environment variable for the env-gated live test. Tokens
+%% travel through the environment only: never argv, never files, never
+%% this module's output.
+get_env(Name) ->
+    case os:getenv(unicode:characters_to_list(Name)) of
+        false -> {error, nil};
+        Value -> {ok, unicode:characters_to_binary(Value)}
+    end.
 
 table() ->
     Name = tadpole_test_recorder,

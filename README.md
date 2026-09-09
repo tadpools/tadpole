@@ -204,6 +204,11 @@ All tests run against recorded fixtures and canned HTTP responses. No
 network in CI. The suite has three layers (unit, property, contract);
 TESTING.md is the map: what each layer is for and how to add to it.
 
+The one exception is the env-gated live gate: with `TADPOLE_TOKEN` set,
+`gleam test` also runs CONTRIBUTING's publish gate for real (REST
+authentication, gateway connect through READY, typed events, clean
+close). Without the variable it skips. See TESTING.md.
+
 Smoke runs against real Discord happen by hand, never from CI, with a
 token in `TADPOLE_TOKEN`. The smoke scripts live in dev/ and are not
 part of the published tree; they are how the publish gate gets run.
