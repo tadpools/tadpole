@@ -33,17 +33,20 @@ pub type Frame {
 pub fn parse(payload: String) -> Result(Frame, FrameError) {
   let decoder = {
     use op <- d.field("op", d.int)
-    use s_raw <- d.optional_field("s", -1, d.int)
-    use t_raw <- d.optional_field("t", "", d.string)
-    d.success(#(op, s_raw, t_raw))
+    // Discord nulls s and t on every non-dispatch frame (HELLO sends
+    // "t": null, "s": null); d.optional turns absent and null alike
+    // into None, which is exactly the Frame shape.
+    use sequence <- d.optional_field("s", None, d.optional(d.int))
+    use event_name <- d.optional_field("t", None, d.optional(d.string))
+    d.success(#(op, sequence, event_name))
   }
 
   case json.parse(payload, decoder) {
-    Ok(#(op, s_raw, t_raw)) ->
+    Ok(#(op, sequence, event_name)) ->
       Ok(Frame(
         opcode: opcode.from_int(op),
-        sequence: unsentinel_int(s_raw),
-        event_name: unsentinel_string(t_raw),
+        sequence: sequence,
+        event_name: event_name,
         raw: payload,
       ))
     Error(_) -> Error(FrameNotJson)
@@ -154,18 +157,4 @@ fn framed(op: Opcode, data: json.Json) -> String {
     #("d", data),
   ])
   |> json.to_string
-}
-
-fn unsentinel_int(raw: Int) -> Option(Int) {
-  case raw {
-    -1 -> None
-    _ -> Some(raw)
-  }
-}
-
-fn unsentinel_string(raw: String) -> Option(String) {
-  case raw {
-    "" -> None
-    _ -> Some(raw)
-  }
 }

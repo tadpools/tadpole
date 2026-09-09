@@ -32,6 +32,18 @@ pub fn parse_hello_test() {
   parsed.event_name |> should.equal(None)
 }
 
+pub fn parse_hello_with_null_fields_test() {
+  // Discord sends "t": null, "s": null on every non-dispatch frame.
+  // The old sentinel-default parse rejected exactly this shape, so a
+  // real connection dropped its first frame and never reached READY.
+  let nulls =
+    "{\"t\":null,\"s\":null,\"op\":10,\"d\":{\"heartbeat_interval\":41250}}"
+  let assert Ok(parsed) = frame.parse(nulls)
+  parsed.opcode |> should.equal(opcode.Hello)
+  parsed.sequence |> should.equal(None)
+  parsed.event_name |> should.equal(None)
+}
+
 pub fn parse_dispatch_keeps_all_fields_test() {
   let assert Ok(parsed) = frame.parse(dispatch_message)
   parsed.opcode |> should.equal(opcode.Dispatch)
