@@ -7,6 +7,7 @@ import gleam/option.{None, Some}
 import gleeunit/should
 import tadpole/error.{DecodeFailed}
 import tadpole/gateway/events
+import tadpole/gateway/frame
 import tadpole/types/ids
 
 // fixtures
@@ -130,6 +131,46 @@ pub fn unmodeled_known_event_is_unknown_test() {
   let payload = "{\"user\":{}}"
   events.decode("GUILD_BAN_ADD", payload)
   |> should.equal(Ok(events.Unknown("GUILD_BAN_ADD", payload)))
+}
+
+// The shard feeds events.decode exactly what frame.parse produced: the
+// full envelope, op and s and t and d. These tests pin that wiring, not
+// just the bare d objects above.
+
+pub fn ready_in_full_envelope_decodes_through_frame_parse_test() {
+  let envelope = "{\"t\":\"READY\",\"s\":7,\"op\":0,\"d\":" <> ready <> "}"
+  let assert Ok(frame) = frame.parse(envelope)
+  let assert Some("READY") = frame.event_name
+
+  let assert Ok(events.Ready(user, count)) = events.decode("READY", frame.raw)
+  user.username |> should.equal("polly")
+  count |> should.equal(2)
+}
+
+pub fn message_create_in_full_envelope_decodes_through_frame_parse_test() {
+  let envelope =
+    "{\"t\":\"MESSAGE_CREATE\",\"s\":8,\"op\":0,\"d\":" <> message_create <> "}"
+  let assert Ok(frame) = frame.parse(envelope)
+
+  let assert Ok(events.MessageCreate(message)) =
+    events.decode("MESSAGE_CREATE", frame.raw)
+  message.content |> should.equal("hello pond")
+}
+
+pub fn envelope_decode_failure_reports_path_inside_d_test() {
+  // A bad id under d must be reported at author.id, not d.author.id:
+  // callers think in event objects, not envelopes.
+  let envelope =
+    "{\"t\":\"MESSAGE_CREATE\",\"s\":9,\"op\":0,\"d\":{\"id\":\"not-a-snowflake\",\"channel_id\":\"200001\",\"author\":{\"id\":\"900001\",\"username\":\"polly\"},\"content\":\"\",\"timestamp\":\"t\"}}"
+  let assert Error(DecodeFailed(_, path, _, _)) =
+    events.decode("MESSAGE_CREATE", envelope)
+  path |> should.equal("id")
+}
+
+pub fn bare_object_still_decodes_test() {
+  // Direct callers and tests replay bare d objects; that shape stays.
+  let assert Ok(events.Ready(user, _)) = events.decode("READY", ready)
+  user.username |> should.equal("polly")
 }
 
 pub fn invented_event_name_is_unknown_test() {
