@@ -1,8 +1,7 @@
 //// Tadpole: a Discord library for Gleam. Every frog starts as a
-//// tadpole. This module is where a bot begins: `new` builds a config,
-//// `with_*` adjusts it, `validate` checks it before anything connects.
-//// The network hangs off `ValidatedConfig`; the runner that uses it is
-//// tadpole/bot.
+//// tadpole. A bot starts here: `new` builds a config, `with_*`
+//// adjusts it, `validate` checks it before anything connects. The
+//// runner that uses a validated config is tadpole/bot.
 ////
 //// New here? [`tadpole/guide`](tadpole/guide.html) walks from an empty
 //// directory to a running echo bot.
@@ -68,32 +67,28 @@
 ////
 //// ## Status and stability
 ////
-//// The first vertical slice works: a bot connects to the gateway,
-//// identifies, heartbeats on Discord's interval, resumes after a
-//// disconnect, reconnects with backoff, and receives typed events.
-//// REST runs over gleam_httpc with rate limits taken from response
-//// headers and 429 bodies — no hardcoded bucket table.
+//// Works today: gateway connect, identify, heartbeats on Discord's
+//// interval, resume after a disconnect, reconnect with backoff, typed
+//// events. REST runs over gleam_httpc with rate limits learned from
+//// response headers and 429 bodies — no hardcoded bucket table.
 ////
-//// Not here yet — do not assume it:
+//// Not here yet:
 ////
-//// - multi-shard. A config asking for more than one shard is refused
-////   with `ShardingNotSupported` before anything connects.
+//// - multi-shard (asking for more is refused with
+////   `ShardingNotSupported` before anything connects)
 //// - interactions and slash commands
 //// - embeds, file uploads, message components
 //// - voice
-//// - a cache. Every event is what Discord just sent; nothing is
-////   remembered between events.
-//// - graceful shutdown. `bot.stop` closes the gateway; the program
-////   ends the usual way.
+//// - a cache; every event is what Discord just sent, nothing is
+////   remembered between events
+//// - graceful shutdown; `bot.stop` closes the gateway and that is all
 ////
-//// Each module's `////` header declares a stability tier (Stable,
-//// Growing, Experimental) under the policy in CONTRIBUTING.md. Most of
-//// this slice is Growing or Experimental.
+//// Each module's header declares a stability tier (Stable, Growing,
+//// Experimental) under the policy in CONTRIBUTING.md. Most of this
+//// slice is Growing or Experimental.
 ////
-//// The package is not on Hex yet. CONTRIBUTING.md gates publishing on
-//// one live roundtrip — gateway connect through ready, plus one real
-//// REST call — and that gate has not been tripped. Until then the
-//// changelog and the test suite are the contract.
+//// The publish gate — a live gateway roundtrip plus one real REST
+//// call — has been tripped. Hex is the next milestone.
 
 import gleam/int
 import gleam/string

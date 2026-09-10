@@ -14,13 +14,12 @@
 ////
 //// ## When you reach for this
 ////
-//// For every first bot. `run` is the entire program: build a config,
-//// hand over a handler, block until killed. Reach for `start` instead
-//// when something else in the program must keep working alongside the
-//// bot — `start` returns a Bot once the shard is up and lets you call
-//// `stop` or the REST helpers from any process later. Neither function
-//// supports more than one shard; that is refused at startup, not
-//// negotiated at runtime.
+//// For every first bot. `run` is the whole program: config, handler,
+//// block until killed. Use `start` instead when the rest of the
+//// program must keep working — it returns a Bot once the shard is up,
+//// and `stop` and the REST helpers are callable from any process
+//// later. Neither function runs more than one shard; that is refused
+//// at startup, not negotiated at runtime.
 ////
 //// ## Failure modes
 ////
@@ -191,22 +190,16 @@ pub type Bot {
   )
 }
 
-/// Validate the config, open one gateway shard, and start dispatching its
-/// events to `handler`.
+/// Validate the config, open one gateway shard, and dispatch its events
+/// to `handler`.
 ///
-/// Fails before any process is started when the token is missing or
-/// malformed (`MissingToken` / `InvalidTokenFormat`), or with
-/// `ShardingNotSupported` when the config asks for more than one shard.
-/// Pass the error to `error/render.render_error` for human-readable next
-/// steps.
+/// Fails before any process starts: `MissingToken` /
+/// `InvalidTokenFormat` for a bad token, `ShardingNotSupported` for
+/// more than one shard. Pass errors to `error/render.render_error` for
+/// human-readable next steps.
 ///
-/// Concurrency: `handler` runs in tadpole's dispatcher process. Events are
-/// delivered SEQUENTIALLY, one at a time in arrival order — a slow handler
-/// delays every event behind it. That is the documented v1 behavior,
-/// chosen over concurrent dispatch so handler state needs no locking. A
-/// crash in the handler crashes the dispatcher and, through its link, the
-/// process that called `start`: fail fast beats a dead bot nobody
-/// noticed.
+/// Concurrency matches the module docs: the handler runs sequentially
+/// with no locks, and a crash in it takes the bot down loudly.
 ///
 ///     // Illustrative — dev/echo_bot.gleam is the whole program.
 ///     let assert Ok(tadbot) = bot.start(config, handle_event)
