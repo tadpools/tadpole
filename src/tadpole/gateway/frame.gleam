@@ -7,9 +7,11 @@
 //// `parse` on everything the gateway sends; [`tadpole/gateway/shard`](shard.html)
 //// builds IDENTIFY/RESUME/HEARTBEAT payloads and reads HELLO and
 //// InvalidSession through the helpers here. `FrameError` covers the only
-//// two ways an envelope can fail — not JSON, or no `op`; everything
-//// after `op` is someone else's decoder problem. See also
-//// [`tadpole/gateway/opcode`](opcode.html) for the `op` values.
+//// two ways an envelope can fail: not JSON at all (`FrameNotJson`), or
+//// valid JSON carrying no integer `op` (`FrameMissingOpcode`). Everything
+//// after `op` is someone else's decoder problem, so hostile payloads
+//// degrade to one of those two values and never crash the connection.
+//// See also [`tadpole/gateway/opcode`](opcode.html) for the `op` values.
 
 import gleam/dynamic/decode as d
 import gleam/json
@@ -30,12 +32,19 @@ pub type Frame {
   )
 }
 
+/// Parse one gateway frame. Hostile input degrades to a Result, never a
+/// crash: valid JSON without an integer op is FrameMissingOpcode, anything
+/// that is not a decodable envelope is FrameNotJson. Unknown op values
+/// still parse — they land in opcode.UnknownOpcode and the shard ignores
+/// them, so a new Discord opcode is data, never a disconnect.
 pub fn parse(payload: String) -> Result(Frame, FrameError) {
   let decoder = {
-    use op <- d.field("op", d.int)
     // Discord nulls s and t on every non-dispatch frame (HELLO sends
     // "t": null, "s": null); d.optional turns absent and null alike
-    // into None, which is exactly the Frame shape.
+    // into None, which is exactly the Frame shape. op is checked after
+    // the parse so a missing op is its own error, distinct from
+    // payload that was never an envelope.
+    use op <- d.optional_field("op", None, d.optional(d.int))
     use sequence <- d.optional_field("s", None, d.optional(d.int))
     use event_name <- d.optional_field("t", None, d.optional(d.string))
     d.success(#(op, sequence, event_name))
@@ -43,12 +52,16 @@ pub fn parse(payload: String) -> Result(Frame, FrameError) {
 
   case json.parse(payload, decoder) {
     Ok(#(op, sequence, event_name)) ->
-      Ok(Frame(
-        opcode: opcode.from_int(op),
-        sequence: sequence,
-        event_name: event_name,
-        raw: payload,
-      ))
+      case op {
+        None -> Error(FrameMissingOpcode)
+        Some(op) ->
+          Ok(Frame(
+            opcode: opcode.from_int(op),
+            sequence: sequence,
+            event_name: event_name,
+            raw: payload,
+          ))
+      }
     Error(_) -> Error(FrameNotJson)
   }
 }
