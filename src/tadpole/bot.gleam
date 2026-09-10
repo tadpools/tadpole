@@ -63,8 +63,11 @@
 ////   retry is already scheduled with backoff. The logged line stays
 ////   short; the full error goes to the shard's own logs.
 ////
-//// A connect loop — the close-4014 loop from unenabled privileged
-//// intents, for one — shows up here as repeated `Disconnected` notices.
+//// Repeated `Disconnected` plus `ConnectFailed` notices mean a connect
+//// loop, usually a flaky network or a gateway that keeps refusing. A
+//// single `Disconnected` with a config close code (4014 disallowed
+//// intents, for one) is tadpole stopping on purpose: the docs mark
+//// those do-not-reconnect, and no amount of retrying fixes config.
 ////
 //// ## Concurrency
 ////

@@ -26,10 +26,10 @@ pub fn resumable_codes_without_session_identify_fresh_test() {
 }
 
 pub fn reconnectable_but_dead_session_identifies_fresh_test() {
-  // Invalid seq, rate limit, session timeout, invalid shard, bad
-  // intents: Discord kept the door open but threw the session away.
-  // Mirrors gateway_test: should_reconnect True, can_resume False.
-  [4007, 4008, 4009, 4010, 4011, 4012, 4013, 4014]
+  // Invalid seq, rate limit, session timeout: Discord kept the door
+  // open but threw the session away. Mirrors gateway_test:
+  // should_reconnect True, can_resume False.
+  [4007, 4008, 4009]
   |> list.each(fn(code) {
     shard.next_action_on_close(code, True) |> should.equal(IdentifyFresh)
     shard.next_action_on_close(code, False) |> should.equal(IdentifyFresh)
@@ -43,10 +43,19 @@ pub fn unknown_codes_identify_fresh_test() {
   shard.next_action_on_close(9999, False) |> should.equal(IdentifyFresh)
 }
 
-pub fn auth_failures_stop_test() {
-  // 4003: not authenticated. 4004: authentication failed. A config
-  // problem, not a network problem — reconnecting loops forever.
-  [4003, 4004]
+pub fn not_authenticated_reconnects_with_fresh_identify_test() {
+  // 4003: the docs mark it reconnect: true, and with the session gone
+  // the fresh identify on reconnect is the documented fix.
+  shard.next_action_on_close(4003, True) |> should.equal(IdentifyFresh)
+  shard.next_action_on_close(4003, False) |> should.equal(IdentifyFresh)
+}
+
+pub fn config_errors_stop_test() {
+  // The docs mark these reconnect: false: bad token, invalid shard,
+  // sharding required, invalid API version, invalid or disallowed
+  // intents. A config problem, not a network problem — reconnecting
+  // loops forever without fixing anything.
+  [4004, 4010, 4011, 4012, 4013, 4014]
   |> list.each(fn(code) {
     shard.next_action_on_close(code, True) |> should.equal(GiveUp)
     shard.next_action_on_close(code, False) |> should.equal(GiveUp)

@@ -36,12 +36,21 @@ pub fn can_resume(close_code: Int) -> Bool {
   }
 }
 
-/// Auth failures are a config problem, not a network problem: reconnecting
-/// without fixing the token just loops.
+/// Should the shard reconnect after this close code at all? Mirrors the
+/// docs' close code table. The stop set is every code the docs mark
+/// "Reconnect: false": a bad token, a bad shard, a bad version, bad or
+/// disallowed intents. All config problems, and backing off forever
+/// without fixing any of them just grinds against the API. 4003 (not
+/// authenticated) reconnects: the docs mark it reconnect: true, and a
+/// fresh identify after a lost session is the documented fix.
 pub fn should_reconnect(close_code: Int) -> Bool {
   case close_code {
-    4003 -> False
     4004 -> False
+    4010 -> False
+    4011 -> False
+    4012 -> False
+    4013 -> False
+    4014 -> False
     _ -> True
   }
 }
@@ -117,6 +126,10 @@ pub fn close_code_name(code: Int) -> String {
     4012 -> "invalid API version"
     4013 -> "invalid intents"
     4014 -> "disallowed intents"
+    // Tadpole's own keep-session wire code, never sent by Discord. It
+    // shows up in lifecycle notices for deliberate resume-intended
+    // closes (op 7 reconnect, resumable op 9, zombie kill).
+    4900 -> "tadpole keep-session close"
     _ -> "close code " <> int.to_string(code)
   }
 }

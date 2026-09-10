@@ -187,11 +187,12 @@
 //// nothing, because Discord does the enforcing.
 ////
 //// Enforcement looks like this: the bot identifies, Discord closes
-//// the connection with close code 4014 (disallowed intents), tadpole
-//// reconnects, Discord closes it again. The lifecycle log names the
-//// code each round. The loop stops when the intents are toggled on or
-//// dropped from the config. The echo bot prints its warning before
-//// any of that, for exactly this reason.
+//// the connection with close code 4014 (disallowed intents), and
+//// tadpole stops reconnecting. The docs mark 4014 as do-not-reconnect;
+//// it is a config problem, and retrying cannot fix it. The lifecycle
+//// log names the code once: toggle the intents on or drop them from
+//// the config, then start the bot again. The echo bot prints its
+//// warning before any of that, for exactly this reason.
 ////
 //// ## Responding to events
 ////

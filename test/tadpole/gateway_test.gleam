@@ -2,6 +2,7 @@
 ////
 
 import gleam/int
+import gleam/list
 import gleeunit/should
 import tadpole/gateway
 
@@ -42,18 +43,24 @@ pub fn unknown_codes_are_not_resumable_test() {
   gateway.can_resume(9999) |> should.be_false
 }
 
-pub fn auth_failures_never_reconnect_test() {
-  // 4003: not authenticated; 4004: authentication failed.
-  // A config problem — reconnecting loops forever without fixing the token.
-  gateway.should_reconnect(4003) |> should.be_false
-  gateway.should_reconnect(4004) |> should.be_false
+pub fn close_4003_reconnects_with_fresh_identify_test() {
+  // The docs' close code table marks 4003 reconnect: true. The session
+  // is gone, so the fresh identify on reconnect is the documented fix.
+  gateway.should_reconnect(4003) |> should.be_true
+}
+
+pub fn config_errors_never_reconnect_test() {
+  // The docs mark these reconnect: false. Every one is a config or
+  // token problem no amount of reconnecting fixes; backing off forever
+  // just grinds against the API.
+  [4004, 4010, 4011, 4012, 4013, 4014]
+  |> list.each(fn(code) { gateway.should_reconnect(code) |> should.be_false })
 }
 
 pub fn transient_failures_reconnect_test() {
   gateway.should_reconnect(1006) |> should.be_true
   gateway.should_reconnect(4000) |> should.be_true
   gateway.should_reconnect(4009) |> should.be_true
-  gateway.should_reconnect(4014) |> should.be_true
 }
 
 pub fn backoff_starts_at_initial_test() {
@@ -124,5 +131,7 @@ pub fn close_code_names_test() {
   gateway.close_code_name(1006) |> should.equal("abnormal closure")
   gateway.close_code_name(4004) |> should.equal("authentication failed")
   gateway.close_code_name(4014) |> should.equal("disallowed intents")
+  gateway.close_code_name(4900)
+  |> should.equal("tadpole keep-session close")
   gateway.close_code_name(4242) |> should.equal("close code 4242")
 }
