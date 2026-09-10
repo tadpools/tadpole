@@ -6,11 +6,9 @@
 //// against the tables in tadpole/gateway.
 //// Stability: Growing.
 ////
-//// Almost every bot meets this module through [`tadpole/bot`](../bot.html),
-//// which builds the ShardConfig, runs the dispatch loop, and logs
-//// Lifecycle notices. Come here directly to run a shard with your own
-//// event sink — a custom dispatcher, a test harness, a second consumer
-//// of lifecycle data.
+//// Almost every bot meets this module through [`tadpole/bot`](../bot.html).
+//// Come here directly to run a shard with your own event sink — a custom
+//// dispatcher, a test harness, a second consumer of lifecycle data.
 ////
 //// ## When you reach for this
 ////
@@ -83,18 +81,17 @@
 ////
 //// ## Concurrency
 ////
-//// The shard is one actor and owns all state: session id, sequence,
-//// heartbeat counters, the connection, its timers. Nothing to lock.
+//// One actor owns everything: session id, sequence, heartbeat counters,
+//// the connection, its timers. Nothing to lock.
 ////
-//// - `process.send` to the shard subject, the events subject, or the
-////   lifecycle subject is safe from any process; sends are async and
-////   never block.
-//// - The events subject can only be received by its owner. Create it in
-////   the process that will read it.
-//// - `start` blocks its caller for at most one websocket handshake
-////   (~5s); everything after that is async.
-//// - `next_action_on_close` and `on_invalid_session` are pure — safe to
-////   call anywhere, which is how tests pin the ladder.
+//// - `process.send` to the shard, events, or lifecycle subject is safe
+////   from any process; sends are async and never block.
+//// - The events subject can only be received by its owner — create it
+////   in the process that will read it.
+//// - `start` blocks for at most one websocket handshake (~5s); after
+////   that everything is async.
+//// - `next_action_on_close` and `on_invalid_session` are pure — safe
+////   to call anywhere, which is how tests pin the ladder.
 ////
 //// ## Example
 ////
@@ -107,7 +104,6 @@
 //// // Illustrative — tadpole/bot wires exactly this.
 //// pub fn run_shard(token: String) -> process.Subject(shard.ShardMsg) {
 ////   let events = process.new_subject()
-////   let lifecycle = process.new_subject()
 ////   let assert Ok(shard_subject) =
 ////     shard.start(
 ////       shard.ShardConfig(
@@ -117,11 +113,11 @@
 ////         ),
 ////         shard: #(0, 1),
 ////         url: "wss://gateway.discord.gg/?v=10&encoding=json",
-////         lifecycle: Some(lifecycle),
+////         lifecycle: None,
 ////       ),
 ////       events: events,
 ////     )
-////   // Read `events` in this process; send shard.Stop to close it.
+////   // Read `events` here; send shard.Stop to close.
 ////   shard_subject
 //// }
 //// ```

@@ -30,25 +30,21 @@
 //// - `intent.message_content` — Message Content; without it, other
 ////   users' messages arrive with empty `content`
 ////
-//// `check_privileged` lists which privileged bits a config requests.
-//// tadpole reports them and refuses nothing — Discord does the
-//// enforcing, after connect. The guide's "Privileged intents" section
-//// has the whole story.
+//// `check_privileged` lists which privileged bits a config requests;
+//// tadpole refuses nothing — Discord does the enforcing, after connect.
+//// The guide's "Privileged intents" section has the whole story.
 ////
-//// ## to_int and the wire
+//// ## The wire
 ////
-//// The opaque value rides in the tadpole config; `to_int` produces the
-//// raw integer the IDENTIFY payload carries —
-//// [`tadpole/gateway/shard`](gateway/shard.html) does exactly that when it
-//// builds its ShardConfig. `intent_name` names one bit for logs and
+//// `to_int` produces the raw integer the IDENTIFY payload carries;
+//// [`tadpole/gateway/shard`](gateway/shard.html) does exactly that when
+//// it builds its ShardConfig. `intent_name` names one bit for logs and
 //// rendered errors; `to_string` names them all, or "(none)".
 ////
-//// ## Failure modes
-////
-//// Cannot fail at runtime: every function is total bit arithmetic. The
-//// only failure is configurational — a privileged bit without its
-//// portal toggle — and it surfaces as close code 4014 after connect,
-//// not as an error from this module.
+//// Every function here is total bit arithmetic, so nothing fails at
+//// runtime. The one failure is configurational — a privileged bit
+//// without its portal toggle — and it surfaces as close 4014 after
+//// connect, not as an error from this module.
 ////
 //// ## See also
 ////
