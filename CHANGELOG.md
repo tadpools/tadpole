@@ -4,6 +4,35 @@ Versions are calendar-based (YYYY.MILESTONE.PATCH). Before the first
 publish there are no compatibility promises; the tests and this changelog
 are the contract.
 
+## 2026.3.0 - unreleased
+
+Hardening and docs alignment: places where the docs said something the
+library did not do yet.
+
+- gateway frame parsing is hardened against hostile input. Payloads
+  that are not a decodable envelope (wrong op types, arrays, scalars,
+  huge or unicode event names, deep nesting, extra fields) degrade to
+  a Result and never crash a connection. Valid JSON carrying no op is
+  now `FrameMissingOpcode`, distinct from `FrameNotJson` — the docs
+  promised two failure modes; both are real now.
+- rate limit responses carry `X-RateLimit-Scope` as a typed value
+  (user, shared, or global) on the parsed headers and on bucket
+  state. Waits ignore scope; an unknown scope degrades to None.
+- `RateLimitHeaders.reset` is a float now: the docs' reset is an epoch
+  timestamp that may carry a fractional part, and integer parsing
+  silently dropped the whole field on those responses. Both whole and
+  fractional forms parse (the same tolerant parse covers
+  `X-RateLimit-Reset-After`). This is the milestone's one breaking
+  field type.
+- the first heartbeat on a fresh connection waits
+  `heartbeat_interval * jitter` per the docs' thundering-herd rule.
+  The math is a pure, clamped function in tadpole/gateway
+  (`first_heartbeat_delay_ms`); the shard draws the random value.
+- the gateway opcode table matches the docs row for row, including
+  the send-only opcodes 31 (Request Soundboard Sounds) and 43
+  (Request Channel Info). Unknown opcodes remain data the shard
+  ignores.
+
 ## 2026.2.0 - first-swim (published 2026-09-10)
 
 The first vertical slice: a bot can connect to the gateway, receive
