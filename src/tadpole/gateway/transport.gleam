@@ -80,6 +80,7 @@ import logging
 import stratus
 import tadpole/error.{type TadpoleError, BadRequest, GatewayConnectFailed}
 import tadpole/gateway/frame.{type Frame}
+import tadpole/user_agent
 
 /// A live websocket connection to the gateway. Opaque on purpose: the
 /// stratus connection behind it may only be touched from the transport
@@ -199,7 +200,7 @@ fn build_request(
 ) -> Request(String) {
   request.Request(
     method: http.Get,
-    headers: [],
+    headers: [user_agent.header()],
     body: "",
     scheme: scheme,
     host: host,

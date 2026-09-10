@@ -13,6 +13,7 @@ import gleeunit/should
 import tadpole/error
 import tadpole/rest
 import tadpole/rest/execute
+import tadpole/user_agent
 
 @external(erlang, "tadpole_test_ffi", "record_request")
 fn record_request(request: Request(String)) -> Nil
@@ -327,7 +328,7 @@ pub fn request_shape_get_test() {
   rest.header(sent.headers, "authorization")
   |> should.equal(Some("Bot " <> token))
   rest.header(sent.headers, "user-agent")
-  |> should.equal(Some("tadpole (Gleam Discord library)"))
+  |> should.equal(Some(user_agent.value()))
   rest.header(sent.headers, "content-type") |> should.equal(None)
 }
 

@@ -111,6 +111,7 @@ import gleam/uri
 import tadpole/error.{type BucketId, type TadpoleError}
 import tadpole/rest
 import tadpole/rest/rate_limit
+import tadpole/user_agent
 
 /// What a transport can fail with. The shapes mirror gleam_httpc 5.x's
 /// `HttpError` one-to-one — the only transport shipped here — so nothing
@@ -140,8 +141,6 @@ pub type Transport =
   fn(Request(String)) -> Result(Response(String), TransportError)
 
 const api_prefix = "/api/v10"
-
-const user_agent = "tadpole (Gleam Discord library)"
 
 /// The real transport, on gleam_httpc. `timeout_ms` bounds how long one
 /// request may take; Discord calls regularly run past a second, so a
@@ -397,7 +396,7 @@ fn build_http_request(
   let headers =
     [
       rest.authorization_header(client.token),
-      #("user-agent", user_agent),
+      user_agent.header(),
       ..case request.body {
         Some(_) -> [#("content-type", "application/json")]
         None -> []
