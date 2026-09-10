@@ -26,9 +26,7 @@
 //// | `GuildDelete(unavailable)` | GUILD_DELETE | the `unavailable: true` stub — only the id is guaranteed |
 //// | `Unknown(name, raw)` | any other name | the event name and the raw frame JSON, untouched |
 ////
-//// ## The Unknown contract
-////
-//// Nothing here ever crashes a bot:
+//// ## Nothing here crashes a bot
 ////
 //// - Any name tadpole does not model — new Discord events included —
 ////   decodes to `Unknown` and `decode` succeeds. Known events this
@@ -38,15 +36,9 @@
 ////   that failure. It converts it to `Unknown(name, raw)` and keeps
 ////   running, so a handler sees `Unknown`, never a decode error.
 //// - `decode` is public for direct callers (tests, replay tools), who
-////   get the failure honestly instead.
-////
-//// ## Failure modes
-////
-//// `decode` fails with `error.DecodeFailed` only for a modeled event
-//// (READY, MESSAGE_CREATE, MESSAGE_UPDATE, MESSAGE_DELETE, GUILD_CREATE,
-//// GUILD_DELETE) whose payload is not JSON, misses a required field, or
-//// carries a non-snowflake id. The error names the event and the JSON
-//// path. `Resumed` and every unmodeled name cannot fail.
+////   get the failure honestly instead: `DecodeFailed` names the event
+////   and the JSON path, and only fires for the six modeled events —
+////   `Resumed` and every unmodeled name cannot fail.
 ////
 //// ## Example
 ////

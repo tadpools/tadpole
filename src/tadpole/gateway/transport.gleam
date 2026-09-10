@@ -45,26 +45,23 @@
 //// are mapped back to wire codes here — custom 4xxx codes pass through,
 //// NotProvided becomes 1006.
 ////
-//// A connection can also die with no close at all (process death, a
-//// dropped socket). That is not a `Closed` notice — it is the monitor
-//// firing, which is the next section.
-////
 //// ## Monitor, not link
 ////
-//// `connect` starts the connection as its own actor, which links to its
-//// spawner like any Gleam actor. The shard immediately severs that link
-//// (`process.unlink(transport.owner_pid(conn))`) and monitors the
-//// process instead: a transport death must notify the shard, not kill
-//// it. The monitor is the death signal; `Closed` is the polite one, and
-//// the shard swallows late duplicates with its `closed_handled` flag.
+//// A connection can also die with no close at all (process death, a
+//// dropped socket) — that is not a `Closed` notice, it is the monitor
+//// firing. `connect` starts the connection as its own actor, which
+//// links to its spawner like any Gleam actor. The shard immediately
+//// severs that link (`process.unlink(transport.owner_pid(conn))`) and
+//// monitors the process instead: a transport death must notify the
+//// shard, not kill it. The monitor is the death signal; `Closed` is
+//// the polite one, and the shard swallows late duplicates with its
+//// `closed_handled` flag.
 ////
 //// ## Failure modes
 ////
-//// `connect` fails on a bad URL or a failed handshake.
-//// `gateway_request` rejects any URL whose scheme is not `wss`/`ws` — a
-//// config typo fails immediately, not as a handshake mystery.
-//// `send_text` fails when the socket refuses the write and crashes the
-//// caller when the transport is gone. `close` never fails.
+//// `connect` fails on a bad URL or a failed handshake; `gateway_request`
+//// rejects any scheme that is not `wss`/`ws`. `send_text` and `close`
+//// behave as the Connection contract above describes.
 ////
 //// ## See also
 ////
