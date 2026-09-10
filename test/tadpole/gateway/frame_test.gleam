@@ -72,8 +72,103 @@ pub fn parse_garbage_is_frame_not_json_test() {
   frame.parse("not json at all") |> should.equal(Error(frame.FrameNotJson))
 }
 
-pub fn parse_json_without_opcode_is_error_test() {
-  frame.parse("{\"d\":{}}") |> should.be_error
+pub fn parse_json_without_opcode_test() {
+  // Valid JSON, but not an envelope: its own failure, distinct from
+  // payload that was never JSON at all.
+  frame.parse("{\"d\":{}}") |> should.equal(Error(frame.FrameMissingOpcode))
+}
+
+// ---- hostile fixtures: degrade to a Result, never a crash --------------
+
+pub fn parse_op_null_is_missing_opcode_test() {
+  // Discord nulls s and t on non-dispatch frames; a null op is not a
+  // frame Discord sends, and it is not an envelope either.
+  frame.parse("{\"op\":null}") |> should.equal(Error(frame.FrameMissingOpcode))
+}
+
+pub fn parse_op_as_float_rejected_test() {
+  // JSON allows 0.0 where the protocol demands 0. The contract is
+  // strict: op is an integer or the frame does not parse.
+  frame.parse("{\"op\":0.0,\"t\":\"MESSAGE_CREATE\",\"d\":{}}")
+  |> should.equal(Error(frame.FrameNotJson))
+}
+
+pub fn parse_op_as_string_rejected_test() {
+  frame.parse("{\"op\":\"0\",\"d\":{}}")
+  |> should.equal(Error(frame.FrameNotJson))
+}
+
+pub fn parse_sequence_as_float_rejected_test() {
+  frame.parse("{\"op\":0,\"s\":42.5,\"t\":\"READY\",\"d\":{}}")
+  |> should.equal(Error(frame.FrameNotJson))
+}
+
+pub fn parse_event_name_as_number_rejected_test() {
+  frame.parse("{\"op\":0,\"t\":42,\"d\":{}}")
+  |> should.equal(Error(frame.FrameNotJson))
+}
+
+pub fn parse_array_payload_rejected_test() {
+  frame.parse("[]") |> should.equal(Error(frame.FrameNotJson))
+}
+
+pub fn parse_scalar_payload_rejected_test() {
+  frame.parse("42") |> should.equal(Error(frame.FrameNotJson))
+  frame.parse("\"a string\"") |> should.equal(Error(frame.FrameNotJson))
+  frame.parse("null") |> should.equal(Error(frame.FrameNotJson))
+  frame.parse("true") |> should.equal(Error(frame.FrameNotJson))
+}
+
+pub fn parse_empty_string_rejected_test() {
+  frame.parse("") |> should.equal(Error(frame.FrameNotJson))
+}
+
+pub fn parse_unknown_opcodes_still_parse_test() {
+  // The unknown-safe contract: a new Discord opcode is data the shard
+  // ignores, never a parse failure or a disconnect.
+  let assert Ok(parsed) = frame.parse("{\"op\":99,\"d\":{}}")
+  parsed.opcode |> should.equal(opcode.UnknownOpcode(99))
+
+  let assert Ok(negative) = frame.parse("{\"op\":-1,\"d\":{}}")
+  negative.opcode |> should.equal(opcode.UnknownOpcode(-1))
+}
+
+pub fn parse_extra_envelope_fields_ignored_test() {
+  // Discord can extend the envelope; extra fields are not ours to
+  // reject.
+  let payload =
+    "{\"op\":0,\"s\":7,\"t\":\"READY\",\"d\":{},\"future_field\":{\"x\":1}}"
+  let assert Ok(parsed) = frame.parse(payload)
+  parsed.opcode |> should.equal(opcode.Dispatch)
+  parsed.sequence |> should.equal(Some(7))
+}
+
+pub fn parse_deeply_nested_payload_test() {
+  // 64 nested objects in d; the envelope reader never descends into
+  // d, so nesting depth is the event decoder's problem, not ours.
+  let nested = string.repeat("{\"a\":", 64) <> "1" <> string.repeat("}", 64)
+  let payload = "{\"op\":0,\"s\":1,\"t\":\"X\",\"d\":" <> nested <> "}"
+  let assert Ok(parsed) = frame.parse(payload)
+  parsed.opcode |> should.equal(opcode.Dispatch)
+}
+
+pub fn parse_huge_event_name_test() {
+  // A megabyte-scale event name parses; sizes Discord will not send
+  // but a broken proxy might must degrade, not crash.
+  let huge = string.repeat("x", 100_000)
+  let payload = "{\"op\":0,\"s\":1,\"t\":\"" <> huge <> "\",\"d\":{}}"
+  let assert Ok(parsed) = frame.parse(payload)
+  let assert Some(name) = parsed.event_name
+  string.length(name) |> should.equal(100_000)
+}
+
+pub fn parse_unicode_event_name_test() {
+  // Multi-byte, CJK, emoji, combining marks: t is bytes on the wire,
+  // and none of them may crash the parser or mangle the name.
+  let unicode = "メッセージ_🐸_écho"
+  let payload = "{\"op\":0,\"s\":1,\"t\":\"" <> unicode <> "\",\"d\":{}}"
+  let assert Ok(parsed) = frame.parse(payload)
+  parsed.event_name |> should.equal(Some(unicode))
 }
 
 pub fn hello_interval_extraction_test() {
