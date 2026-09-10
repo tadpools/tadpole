@@ -62,9 +62,9 @@
 ////
 //// ## Failure modes
 ////
-//// This module is pure data and total functions (`redact_token` keeps
-//// the first 4 and last 4 characters, `[redacted]` under 9). It cannot
-//// fail; what its variants MEAN is documented above and rendered by
+//// Pure data and total functions — this module cannot fail.
+//// `redact_token` keeps the first 4 and last 4 characters, `[redacted]`
+//// under 9. What the variants mean is above; the renderer is
 //// [`tadpole/error/render`](error/render.html).
 ////
 //// ## See also

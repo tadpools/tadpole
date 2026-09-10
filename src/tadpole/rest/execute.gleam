@@ -75,18 +75,17 @@
 //// - `send` and `send_with_sleep` share nothing between calls: safe
 ////   from as many processes as you like.
 //// - A session threaded through one process serializes that route's
-////   calls — that is the point. A session sent across processes is
-////   copied per message; learned waits diverge silently.
+////   calls — that is the point. Sent across processes, it is copied
+////   and learned waits diverge silently (see above).
 //// - Every sleep blocks the calling process: pre-send waits, 429
 ////   windows, and the HTTP round trip (bounded by the client timeout).
 ////
 //// ## Failure modes
 ////
-//// `RestStatus` for any non-2xx (status 0 = transport failure) and
-//// `RateLimited` when 429s outlast the retries. Nothing else: the body
-//// is returned raw, so no `DecodeFailed` here — decoding is the
-//// endpoint's job. Never panics, and the token never appears in an
-//// error.
+//// `RestStatus` for any non-2xx and `RateLimited` when 429s outlast
+//// the retries — nothing else. The body is returned raw, so no
+//// `DecodeFailed` here; decoding is the endpoint's job. Never panics,
+//// and the token never appears in an error.
 ////
 //// ## See also
 ////

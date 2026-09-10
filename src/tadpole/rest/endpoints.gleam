@@ -54,11 +54,10 @@
 ////
 //// ## Concurrency
 ////
-//// Each call is independent — fresh rate-limit session, no shared
-//// state, safe from any number of processes — but a tight loop leans on
-//// 429 retries rather than learned waits, because nothing carries over.
+//// Each call is independent and blocks its process for the round trip
+//// plus any sleeps. The fresh-session caveat above is the one that
+//// bites: a tight loop leans on 429 retries rather than learned waits.
 //// Sustained fire on one route belongs in `execute.send_in_session`.
-//// Each call blocks its process for the round trip plus any sleeps.
 ////
 //// ## See also
 ////
