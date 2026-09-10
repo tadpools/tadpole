@@ -44,6 +44,10 @@ gateway connection with a real token.
 - the echo bot example (dev/echo_bot.gleam), a gateway smoke run
   (dev/smoke_gw.gleam), and live checks for the publish gate
   (dev/live_checks.gleam, scripts/run-live-tests.ps1).
+- the User-Agent Discord requires, `DiscordBot ($url, $version)`, sent
+  on REST requests and the gateway websocket handshake from one shared
+  source (tadpole/user_agent). An invalid user agent risks a Cloudflare
+  block before the request reaches the API.
 - one new error variant: `ShardingNotSupported(got)`. bot.start runs
   exactly one shard and refuses a config asking for more before anything
   connects. Severity: Actionable; rendered and tested per the

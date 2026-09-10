@@ -8,6 +8,7 @@ import gleam/option.{None, Some}
 import gleeunit/should
 import tadpole/error.{BadRequest, GatewayConnectFailed}
 import tadpole/gateway/transport
+import tadpole/user_agent
 
 pub fn wss_url_builds_tls_request_test() {
   let assert Ok(req) =
@@ -17,6 +18,16 @@ pub fn wss_url_builds_tls_request_test() {
   req.path |> should.equal("/")
   req.query |> should.equal(Some("v=10&encoding=json"))
   req.port |> should.equal(None)
+}
+
+pub fn handshake_carries_the_user_agent_test() {
+  // Discord requires the DiscordBot ($url, $versionNumber) shape on
+  // HTTP API requests; the websocket upgrade is an HTTP request too,
+  // so it gets the same identification.
+  let assert Ok(req) =
+    transport.gateway_request("wss://gateway.discord.gg/?v=10&encoding=json")
+  req.headers
+  |> should.equal([user_agent.header()])
 }
 
 pub fn ws_url_builds_plain_request_test() {

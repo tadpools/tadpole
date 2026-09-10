@@ -106,7 +106,8 @@ Release flow. Hard gate first: the package is not published to Hex until
 the library can actually connect to Discord end to end: gateway connect →
 hello → heartbeat → identify → ready, plus one real REST call. Publishing
 before that is like publishing an emulator that can't emulate. Then: green
-gates → changelog entry → CalVer bump in `gleam.toml` → optional
+gates → changelog entry → CalVer bump in `gleam.toml` and the matching
+`version` in `tadpole/user_agent.gleam` → optional
 growth-stage git tag → `gleam publish`, only if the gate is met.
 
 ## Commit discipline
