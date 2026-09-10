@@ -392,52 +392,22 @@
 ////
 //// ## Going further
 ////
-//// The directory, one line per module:
+//// [`tadpole`](../tadpole.html) keeps the full module directory, the
+//// list of what does not exist yet (multi-shard, interactions,
+//// embeds, voice, a cache, graceful shutdown), and the stability
+//// tiers. The short version of where to read next:
 ////
-//// | Module | What it is | Audience |
-//// | --- | --- | --- |
-//// | [`tadpole`](../tadpole.html) | config builder: `new`, `with_*`, `validate` | start here |
-//// | [`tadpole/bot`](bot.html) | the runner: `start`, `run`, `send_message`, `reply`, `stop` | beginner |
-//// | [`tadpole/gateway/events`](gateway/events.html) | the typed `Event` type and its decoder | beginner |
-//// | [`tadpole/intent`](intent.html) | intents bitfield, privileged detection | beginner |
-//// | [`tadpole/error`](error.html) | every failure as a typed value | beginner |
-//// | [`tadpole/error/render`](error/render.html) | errors to human text, token redacted | beginner |
-//// | [`tadpole/types/ids`](types/ids.html) | opaque IDs, so a UserId cannot go where a GuildId goes | beginner |
-//// | [`tadpole/rest/endpoints`](rest/endpoints.html) | GET /users/@me, post a message, reply | beginner |
-//// | [`tadpole/model/user`](model/user.html) | the user object | beginner |
-//// | [`tadpole/model/message`](model/message.html) | the message object and MESSAGE_UPDATE's partial form | beginner |
-//// | [`tadpole/model/guild`](model/guild.html) | the guild object and the unavailable stub | beginner |
-//// | [`tadpole/model/channel`](model/channel.html) | the channel object, trimmed | beginner |
-//// | [`tadpole/gateway/shard`](gateway/shard.html) | one gateway connection: heartbeats, identify/resume, backoff | internals |
-//// | [`tadpole/gateway/transport`](gateway/transport.html) | the stratus websocket behind a wall | internals |
-//// | [`tadpole/gateway/frame`](gateway/frame.html) | envelope parsing and building: `{op, d, s, t}` | internals |
-//// | [`tadpole/gateway/opcode`](gateway/opcode.html) | gateway opcodes, with a slot for ones Discord adds later | internals |
-//// | [`tadpole/gateway/identify_gate`](gateway/identify_gate.html) | identify pacing across shards; /gateway/bot wiring is later | internals |
-//// | [`tadpole/gateway`](gateway.html) | pure protocol decisions: close codes, backoff, sharding math | internals |
-//// | [`tadpole/event_type`](event_type.html) | event name to category and required intents | internals |
-//// | [`tadpole/rest`](rest.html) | request builders, header-derived rate-limit parsing | internals |
-//// | [`tadpole/rest/execute`](rest/execute.html) | transport injection, 429 retries, rate-limit sessions | internals |
-//// | [`tadpole/rest/rate_limit`](rest/rate_limit.html) | per-bucket limit state, pure | internals |
-//// | [`tadpole/model/decode`](model/decode.html) | shared decoder plumbing | internals |
-//// | [`tadpole/types/snowflake`](types/snowflake.html) | 64-bit snowflakes, timestamp extraction | internals |
+//// - [`tadpole/bot`](bot.html) — the runner's failure modes and
+////   concurrency guarantees
+//// - [`tadpole/rest/endpoints`](rest/endpoints.html) — REST beyond
+////   send and reply
+//// - [`tadpole/intent`](intent.html) — every intent bit and the
+////   privileged trio
+//// - [`tadpole/error`](error.html) — the full failure taxonomy
 ////
-//// What tadpole does not do yet, so nobody spends an afternoon
-//// finding out:
-////
-//// - multi-shard. `with_shards(n)` past 1 is refused with
-////   `ShardingNotSupported` before anything connects.
-//// - interactions and slash commands
-//// - embeds, file uploads, message components
-//// - voice
-//// - a cache. Every event is what Discord just sent; nothing is
-////   remembered between events.
-//// - graceful shutdown. `bot.stop` closes the gateway; the program
-////   ends the usual way.
-////
-//// Each module's doc header declares a stability tier (Stable,
-//// Growing, Experimental) under the policy in CONTRIBUTING.md. Most
-//// of this slice is Growing or Experimental, which is the honest way
-//// to say the API can still move.
+//// Modules below the beginner tier are marked "internals" in the
+//// directory; they are usable, and their APIs move more freely
+//// between milestones.
 ////
 //// ## See also
 ////
