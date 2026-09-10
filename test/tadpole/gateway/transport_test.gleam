@@ -55,3 +55,19 @@ pub fn unparseable_urls_are_rejected_test() {
 pub fn urls_without_a_host_are_rejected_test() {
   transport.gateway_request("wss://") |> should.be_error
 }
+
+pub fn keep_session_close_avoids_the_invalidating_pair_test() {
+  // Discord's docs: closing with 1000 or 1001 invalidates the session.
+  // A close that means to resume must land outside that pair on the
+  // wire; 4900 is the convention for "reconnect intended".
+  let code = transport.close_code(transport.KeepSession)
+  code |> should.not_equal(1000)
+  code |> should.not_equal(1001)
+  code |> should.equal(4900)
+}
+
+pub fn end_session_close_invalidates_cleanly_test() {
+  // bot stop and deliberate shutdowns mean it: 1000 is the docs' clean
+  // invalidation, and the bot appears offline as intended.
+  transport.close_code(transport.EndSession) |> should.equal(1000)
+}

@@ -8,8 +8,9 @@ erl_crash.dump
 dev/
 scripts/run-live-tests.ps1
 
-# Local-only dev notes and roadmap (see NOTES.md)
+# Local-only dev notes, roadmap, and agent working rules (see NOTES.md, AGENTS.md)
 NOTES.md
+AGENTS.md
 *.local.md
 
 # Environment and secrets — tokens NEVER live in committed files

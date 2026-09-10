@@ -56,10 +56,10 @@
 ////
 //// | Situation | Action |
 //// | --- | --- |
-//// | close 4003 (not authenticated) / 4004 (auth failed) | `GiveUp` — a config problem; retrying without a fix loops |
+//// | close 4004, 4010-4014 (bad token, bad shard, bad version, bad or disallowed intents) | `GiveUp` — the docs mark these reconnect: false; a config problem, retrying without a fix loops |
 //// | close 1000, 1001, 1006, 4000, 4001, 4002, with a stored session | `Resume` |
 //// | same codes, no stored session | `IdentifyFresh` |
-//// | close 4005-4014, or any other code | `IdentifyFresh` — the session is gone or unusable |
+//// | close 4003 (not authenticated), 4005-4009, or any other code | `IdentifyFresh` — the docs mark 4003 reconnect: true, and every other reconnectable close has an unusable session |
 //// | op 9 Invalid Session, `d` = true | `Resume` — outranks whatever close code follows |
 //// | op 9 Invalid Session, `d` = false | `IdentifyFresh`; the stored session is forgotten |
 //// | transport died with no close frame | treated as 1006 |
@@ -202,8 +202,9 @@ pub type CloseAction {
   Resume
   /// Reconnect and IDENTIFY as a brand new session.
   IdentifyFresh
-  /// Do not reconnect: 4003/4004 are config problems, and retrying
-  /// without fixing the token just loops.
+  /// Do not reconnect: the docs mark these closes reconnect: false.
+  /// Every one is a config or token problem, and retrying without
+  /// fixing it just loops.
   GiveUp
 }
 
@@ -359,11 +360,12 @@ fn on_frame(
       actor.continue(state)
     }
     opcode.Reconnect -> {
-      // Discord asked for a reconnect and keeps the session. Close and
-      // let the close machinery decide the details — with the session
-      // still stored it always lands on Resume.
-      cancel_heartbeat(state)
-      |> close_socket
+      // Discord asked for a reconnect and keeps the session. Decide the
+      // action here rather than from whatever close code echoes back:
+      // our keep-session close (4900) is not a Discord close code and
+      // must not read as one through the ladder.
+      let code = transport.close_code(transport.KeepSession)
+      close_and_reconnect(state, code, True, False)
       |> actor.continue
     }
     opcode.InvalidSession -> on_invalid_session_frame(state, frame.raw)
@@ -460,8 +462,10 @@ fn on_invalid_session_frame(
   let resumable = frame.invalid_session_resumable(raw) |> result.unwrap(False)
   case on_invalid_session(resumable) {
     Resume -> {
-      cancel_heartbeat(state)
-      |> close_socket
+      // The session survives; the resume comes after reconnecting.
+      // Decide here: an echoed 4900 must not drive the ladder.
+      let code = transport.close_code(transport.KeepSession)
+      close_and_reconnect(state, code, True, False)
       |> actor.continue
     }
     // Discord threw the session away; forget it so the close machinery
@@ -470,7 +474,7 @@ fn on_invalid_session_frame(
     IdentifyFresh -> {
       let state = ShardState(..state, session_id: None, sequence: None)
       cancel_heartbeat(state)
-      |> close_socket
+      |> close_socket(transport.EndSession)
       |> actor.continue
     }
     GiveUp -> actor.continue(state)
@@ -543,7 +547,7 @@ fn on_reconnect(state: ShardState) -> actor.Next(ShardState, ShardMsg) {
   }
   let state = case state.connection {
     Some(conn) -> {
-      transport.close(conn)
+      transport.close(conn, transport.KeepSession)
       process.kill(transport.owner_pid(conn))
       ShardState(..state, connection: None)
     }
@@ -555,7 +559,7 @@ fn on_reconnect(state: ShardState) -> actor.Next(ShardState, ShardMsg) {
 fn shutdown(state: ShardState) -> actor.Next(ShardState, ShardMsg) {
   cancel_heartbeat(state)
   |> cancel_reconnect
-  |> close_socket
+  |> close_socket(transport.EndSession)
   |> fn(state) {
     case state.monitor {
       Some(monitor) -> process.demonitor_process(monitor)
@@ -602,7 +606,10 @@ fn close_and_reconnect(
 ) -> ShardState {
   notify(state.config.lifecycle, Disconnected(code, will_resume))
   let state = cancel_heartbeat(state)
-  let state = close_socket(state)
+  // Every deliberate close before a reconnect is a keep-session close:
+  // the docs forbid 1000/1001 there, and for sockets the server already
+  // closed the send is a harmless no-op.
+  let state = close_socket(state, transport.KeepSession)
   let state = case forget_session {
     True ->
       ShardState(..state, session_id: None, sequence: None, resume_next: False)
@@ -650,11 +657,14 @@ fn cancel_reconnect(state: ShardState) -> ShardState {
   }
 }
 
-fn close_socket(state: ShardState) -> ShardState {
+fn close_socket(
+  state: ShardState,
+  intent: transport.CloseIntent,
+) -> ShardState {
   case state.connection {
     // A dead transport drops the message silently; either way the close
     // machinery has already run or the monitor fires next.
-    Some(conn) -> transport.close(conn)
+    Some(conn) -> transport.close(conn, intent)
     None -> Nil
   }
   state

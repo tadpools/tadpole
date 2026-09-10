@@ -31,9 +31,11 @@
 ////   (up to 5s). If the transport process is already dead, the call
 ////   crashes the caller — the shard only sends between protocol steps
 ////   and treats a dead transport as a close, not as data loss to hide.
-//// - `close` asks for a close frame (1001 GoingAway, which preserves the
-////   session) and returns immediately; the `Closed` notice or process
-////   death follows on its own.
+//// - `close` sends a close frame whose code depends on the intent:
+////   `KeepSession` sends 4900 (outside the 1000/1001 pair Discord
+////   treats as session invalidation), `EndSession` sends 1000. It
+////   returns immediately; the `Closed` notice or process death follows
+////   on its own.
 ////
 //// ## TransportDown and Closed
 ////
@@ -94,7 +96,36 @@ pub opaque type Connection {
 /// (via `close`) to end the connection politely.
 pub type TransportMsg {
   SendText(reply: Subject(Result(Nil, TadpoleError)), payload: String)
-  SendClose
+  SendClose(intent: CloseIntent)
+}
+
+/// What a deliberate close means for the session Discord still holds.
+/// The docs are explicit: closing with close code 1000 or 1001
+/// invalidates the session, and any other close code (or dropping the
+/// TCP connection) leaves it valid until it times out. So the intent
+/// picks the wire code, and the resume paths get a code outside the
+/// invalidating pair.
+pub type CloseIntent {
+  /// The session must stay valid server-side: the next connection will
+  /// RESUME it. Sent as 4900, the convention for "reconnect intended".
+  KeepSession
+  /// The session is dead or should die: the bot is stopping, or the
+  /// next connection will identify fresh. Sent as 1000, the docs' clean
+  /// invalidation.
+  EndSession
+}
+
+const keep_session_close_code = 4900
+
+/// The wire close code an intent sends. Pure so tests can pin exactly
+/// what goes on the wire: a keep-session close must never be 1000 or
+/// 1001, the pair Discord treats as session invalidation.
+@internal
+pub fn close_code(intent: CloseIntent) -> Int {
+  case intent {
+    KeepSession -> keep_session_close_code
+    EndSession -> 1000
+  }
 }
 
 /// Notice that the websocket closed. `close_code` is Discord's close
@@ -127,7 +158,7 @@ pub fn connect(
     stratus.new(req, state)
     |> stratus.on_message(handle_transport_message)
     |> stratus.on_close(fn(state, reason) {
-      process.send(state.on_closed, Closed(close_code(reason)))
+      process.send(state.on_closed, Closed(reason_code(reason)))
     })
 
   case stratus.start(builder) {
@@ -154,11 +185,13 @@ pub fn send_text(
   })
 }
 
-/// Ask the transport to send a close frame (1001 going away) and end.
-/// Fire-and-forget: the usual `Closed` notice or process death follows
-/// on its own.
-pub fn close(conn: Connection) -> Nil {
-  process.send(conn.subject, stratus.to_user_message(SendClose))
+/// Ask the transport to send a close frame and end. The `intent` picks
+/// the wire code: `KeepSession` sends 4900 so Discord keeps the session
+/// for the resume that follows, `EndSession` sends 1000 to invalidate
+/// cleanly. Fire-and-forget: the usual `Closed` notice or process death
+/// follows on its own.
+pub fn close(conn: Connection, intent: CloseIntent) -> Nil {
+  process.send(conn.subject, stratus.to_user_message(SendClose(intent)))
 }
 
 /// The process running the connection. The shard monitors it to learn
@@ -254,10 +287,25 @@ fn handle_transport_message(
       process.send(reply, outcome)
       stratus.continue(state)
     }
-    stratus.User(SendClose) -> {
-      // 1000 or 4900 tell Discord to keep the session; GoingAway (1001)
-      // does too for the reconnect paths this library drives.
-      let _ = stratus.close(conn, stratus.GoingAway(<<>>))
+    stratus.User(SendClose(intent)) -> {
+      // The intent picks the code: 4900 keeps the session for a resume,
+      // 1000 invalidates it. 1001 would also invalidate, so it is never
+      // sent — the docs are explicit about the pair.
+      case intent {
+        KeepSession -> {
+          let _ =
+            stratus.close_custom(
+              conn,
+              code: keep_session_close_code,
+              body: <<>>,
+            )
+          Nil
+        }
+        EndSession -> {
+          let _ = stratus.close(conn, stratus.Normal(<<>>))
+          Nil
+        }
+      }
       stratus.continue(state)
     }
   }
@@ -266,7 +314,7 @@ fn handle_transport_message(
 /// Map stratus's close reason back to the wire close code. Custom covers
 /// every Discord 4xxx code; NotProvided becomes 1006, the abnormal
 /// closure the shard already treats as "network went away".
-fn close_code(reason: stratus.CloseReason) -> Int {
+fn reason_code(reason: stratus.CloseReason) -> Int {
   case reason {
     stratus.NotProvided -> 1006
     stratus.Normal(_) -> 1000

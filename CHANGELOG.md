@@ -32,6 +32,14 @@ gateway connection with a real token.
 - frame parsing accepts Discord's envelope in both shapes it sends:
   fields absent or null. Found live: HELLO's "t": null, "s": null
   failed the old sentinel parse, which left a real connection deaf.
+- reconnects can actually resume. Closes on the resume paths sent
+  1001, which Discord's docs name as session-invalidating, so every
+  reconnect silently degraded to a fresh identify; those paths now
+  send 4900 (keep the session) and decide the resume upfront instead
+  of trusting whatever code echoes back. The close ladder follows the
+  docs' table exactly: 4003 reconnects fresh, 4004 and 4010-4014 stop
+  instead of backing off forever (tadpole/gateway/transport,
+  tadpole/gateway/shard).
 - typed events: Ready, MessageCreate, MessageUpdate, MessageDelete,
   Resumed, GuildCreate, GuildDelete, and Unknown as the catch-all for
   anything not modeled (tadpole/gateway/events).
