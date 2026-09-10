@@ -1,5 +1,6 @@
-# Normalize line endings: LF in the repo, native in the working tree.
-* text=auto
+# Normalize line endings: LF everywhere (working tree included), so
+# core.autocrlf never re-flags files. Windows scripts opt back into CRLF.
+* text=auto eol=lf
 
 # Source and config always LF
 *.gleam text
