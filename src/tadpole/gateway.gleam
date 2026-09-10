@@ -1,7 +1,7 @@
 //// Shard protocol decisions, pure logic: resume/reconnect/close-code
-//// tables, backoff, heartbeat miss tracking, sharding math. The shard
-//// actor in tadpole/gateway/shard applies these decisions on a live
-//// connection.
+//// tables, backoff, heartbeat rules (first-heartbeat jitter, miss
+//// tracking), sharding math. The shard actor in tadpole/gateway/shard
+//// applies these decisions on a live connection.
 ////
 //// Internals: total functions over integers, so every decision the
 //// actor makes is testable without a socket. See also
@@ -9,6 +9,7 @@
 //// [`tadpole/bot`](bot.html), whose disconnect logs quote
 //// `close_code_name`.
 
+import gleam/float
 import gleam/int
 
 pub type ShardState {
@@ -84,6 +85,16 @@ fn int_power(base: Int, exponent: Int) -> Int {
 
 pub type HeartbeatState {
   HeartbeatState(interval_ms: Int, last_sent_sequence: Int, missed_acks: Int)
+}
+
+/// The delay before the FIRST heartbeat on a fresh connection, in ms.
+/// The docs' rule: wait `heartbeat_interval * jitter`, jitter any value
+/// between 0 and 1, so a mass reconnect does not heartbeat in lockstep.
+/// Every later heartbeat waits the full interval. `jitter` outside 0..1
+/// clamps into the range, so a caller with a bad random source cannot
+/// produce a negative or oversized delay.
+pub fn first_heartbeat_delay_ms(interval_ms: Int, jitter: Float) -> Int {
+  float.round(int.to_float(interval_ms) *. float.clamp(jitter, 0.0, 1.0))
 }
 
 pub const max_missed_acks = 3

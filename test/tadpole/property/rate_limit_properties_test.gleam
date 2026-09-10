@@ -36,6 +36,7 @@ fn headers(
     bucket: Some("test-bucket"),
     retry_after: retry_after,
     is_global: False,
+    scope: None,
   )
 }
 

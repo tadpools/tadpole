@@ -69,12 +69,16 @@
 ////
 //// HELLO carries the heartbeat interval — floored at 1s, and 45s if
 //// Discord's HELLO is unreadable, so zombie detection keeps running.
-//// Each tick sends a HEARTBEAT carrying the last sequence number and
-//// re-arms itself; there is no separate timer process to supervise.
-//// Discord can also demand an immediate heartbeat (op 1, often around
-//// RESUME); the shard answers with the current sequence. A HEARTBEAT_ACK
-//// resets the miss counter; after `gateway.max_missed_acks` (3) missed
-//// ACKs the connection is a zombie and the shard reconnects fresh.
+//// The first heartbeat waits `interval * jitter` per the docs'
+//// thundering-herd rule, applied by
+//// [`gateway.first_heartbeat_delay_ms`](../gateway.html) over a random
+//// draw. Each later tick sends a HEARTBEAT carrying the last sequence
+//// number and re-arms itself at the full interval; there is no
+//// separate timer process to supervise. Discord can also demand an
+//// immediate heartbeat (op 1, often around RESUME); the shard answers
+//// with the current sequence. A HEARTBEAT_ACK resets the miss counter;
+//// after `gateway.max_missed_acks` (3) missed ACKs the connection is a
+//// zombie and the shard reconnects fresh.
 ////
 //// Reconnects wait `gateway.backoff_ms(attempts)`: 1s, 2s, 4s, ... capped
 //// at 60s, no jitter. HELLO resets the attempt counter.
@@ -152,6 +156,11 @@ const abnormal_close = 1006
 
 /// Never let a bad HELLO turn into a zero-delay heartbeat storm.
 const min_heartbeat_ms = 1000
+
+/// One random draw in 0..1, for the docs' first-heartbeat jitter rule.
+/// Only the shard calls this; everything downstream of it is pure.
+@external(erlang, "rand", "uniform")
+fn uniform_unit() -> Float
 
 pub type ShardConfig {
   ShardConfig(
@@ -491,7 +500,13 @@ fn on_hello(
       // A HELLO means the connection is real: reset the backoff counter.
       attempts: 0,
       heartbeat: gateway.HeartbeatState(interval, 0, 0),
-      heartbeat_timer: Some(process.send_after(state.tick, interval, Nil)),
+      // The first heartbeat jittered per the docs' thundering-herd
+      // rule; every later tick re-arms at the full interval.
+      heartbeat_timer: Some(process.send_after(
+        state.tick,
+        gateway.first_heartbeat_delay_ms(interval, uniform_unit()),
+        Nil,
+      )),
     )
   case state.resume_next, state.session_id, state.sequence {
     True, Some(session_id), Some(sequence) -> {
