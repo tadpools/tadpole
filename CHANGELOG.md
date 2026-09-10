@@ -46,6 +46,11 @@ gateway connection with a real token.
   carrying the original connection's query parameters; without a
   captured URL the configured one keeps working
   (tadpole/gateway/shard).
+- intent names follow the current gateway docs: guild_bans is now
+  guild_moderation and guild_emojis_and_stickers is now
+  guild_expressions, with the bit values unchanged; the polls intents
+  exist at all now, since GUILD_MESSAGE_POLLS and
+  DIRECT_MESSAGE_POLLS could not be enabled before (tadpole/intent).
 - typed events: Ready, MessageCreate, MessageUpdate, MessageDelete,
   Resumed, GuildCreate, GuildDelete, and Unknown as the catch-all for
   anything not modeled (tadpole/gateway/events).

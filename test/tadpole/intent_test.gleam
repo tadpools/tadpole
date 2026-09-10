@@ -67,7 +67,7 @@ pub fn enabled_lists_exactly_test() {
   list.contains(enabled, intent.guilds) |> should.be_true
   list.contains(enabled, intent.guild_messages) |> should.be_true
   list.contains(enabled, intent.guild_members) |> should.be_true
-  list.contains(enabled, intent.guild_bans) |> should.be_false
+  list.contains(enabled, intent.guild_moderation) |> should.be_false
 }
 
 pub fn to_int_roundtrip_test() {
@@ -81,7 +81,7 @@ pub fn to_int_roundtrip_test() {
   intent.has(restored, intent.guilds) |> should.be_true
   intent.has(restored, intent.guild_messages) |> should.be_true
   intent.has(restored, intent.message_content) |> should.be_true
-  intent.has(restored, intent.guild_bans) |> should.be_false
+  intent.has(restored, intent.guild_moderation) |> should.be_false
 }
 
 pub fn to_string_renders_names_test() {
@@ -103,7 +103,7 @@ pub fn privileged_intents_are_known_test() {
   intent.is_privileged(intent.message_content) |> should.be_true
   intent.is_privileged(intent.guilds) |> should.be_false
   intent.is_privileged(intent.guild_messages) |> should.be_false
-  intent.is_privileged(intent.guild_bans) |> should.be_false
+  intent.is_privileged(intent.guild_moderation) |> should.be_false
 }
 
 pub fn check_privileged_finds_only_privileged_test() {
@@ -142,4 +142,21 @@ pub fn bit_values_are_unique_test() {
 pub fn intent_names_are_unique_test() {
   let names = list.map(intent.all, intent.intent_name)
   list.length(list.unique(names)) |> should.equal(list.length(names))
+}
+
+pub fn polls_intents_pin_the_wire_bits_test() {
+  // 1 << 24 and 1 << 25 per the docs. A wrong constant here would
+  // enable the wrong event family and nothing would complain, so the
+  // exact values are pinned.
+  intent.guild_message_polls |> should.equal(0x1000000)
+  intent.direct_message_polls |> should.equal(0x2000000)
+
+  let intents =
+    intent.new()
+    |> intent.enable(intent.guild_message_polls)
+    |> intent.enable(intent.direct_message_polls)
+
+  intent.has(intents, intent.guild_messages) |> should.be_false
+  intent.to_string(intents)
+  |> should.equal("GUILD_MESSAGE_POLLS, DIRECT_MESSAGE_POLLS")
 }

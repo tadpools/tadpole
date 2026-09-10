@@ -68,9 +68,9 @@ pub const guilds = 0x0001
 
 pub const guild_members = 0x0002
 
-pub const guild_bans = 0x0004
+pub const guild_moderation = 0x0004
 
-pub const guild_emojis_and_stickers = 0x0008
+pub const guild_expressions = 0x0008
 
 pub const guild_integrations = 0x0010
 
@@ -102,15 +102,19 @@ pub const auto_moderation_configuration = 0x100000
 
 pub const auto_moderation_execution = 0x200000
 
+pub const guild_message_polls = 0x1000000
+
+pub const direct_message_polls = 0x2000000
+
 pub const privileged = [guild_members, guild_presences, message_content]
 
 pub const all = [
-  guilds, guild_members, guild_bans, guild_emojis_and_stickers,
-  guild_integrations, guild_webhooks, guild_invites, guild_voice_states,
-  guild_presences, guild_messages, guild_message_reactions, guild_message_typing,
-  direct_messages, direct_message_reactions, direct_message_typing,
-  message_content, guild_scheduled_events, auto_moderation_configuration,
-  auto_moderation_execution,
+  guilds, guild_members, guild_moderation, guild_expressions, guild_integrations,
+  guild_webhooks, guild_invites, guild_voice_states, guild_presences,
+  guild_messages, guild_message_reactions, guild_message_typing, direct_messages,
+  direct_message_reactions, direct_message_typing, message_content,
+  guild_scheduled_events, auto_moderation_configuration,
+  auto_moderation_execution, guild_message_polls, direct_message_polls,
 ]
 
 pub fn new() -> Intents {
@@ -162,8 +166,8 @@ pub fn intent_name(intent: Int) -> String {
   case intent {
     b if b == guilds -> "GUILDS"
     b if b == guild_members -> "GUILD_MEMBERS"
-    b if b == guild_bans -> "GUILD_BANS"
-    b if b == guild_emojis_and_stickers -> "GUILD_EMOJIS_AND_STICKERS"
+    b if b == guild_moderation -> "GUILD_MODERATION"
+    b if b == guild_expressions -> "GUILD_EXPRESSIONS"
     b if b == guild_integrations -> "GUILD_INTEGRATIONS"
     b if b == guild_webhooks -> "GUILD_WEBHOOKS"
     b if b == guild_invites -> "GUILD_INVITES"
@@ -179,6 +183,8 @@ pub fn intent_name(intent: Int) -> String {
     b if b == guild_scheduled_events -> "GUILD_SCHEDULED_EVENTS"
     b if b == auto_moderation_configuration -> "AUTO_MODERATION_CONFIGURATION"
     b if b == auto_moderation_execution -> "AUTO_MODERATION_EXECUTION"
+    b if b == guild_message_polls -> "GUILD_MESSAGE_POLLS"
+    b if b == direct_message_polls -> "DIRECT_MESSAGE_POLLS"
     _ -> "UNKNOWN(" <> int.to_string(intent) <> ")"
   }
 }
