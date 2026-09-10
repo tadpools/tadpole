@@ -8,7 +8,8 @@ pub fn roundtrip_all_known_opcodes_test() {
     opcode.Dispatch, opcode.Heartbeat, opcode.Identify, opcode.PresenceUpdate,
     opcode.VoiceStateUpdate, opcode.Opcode5, opcode.Resume, opcode.Reconnect,
     opcode.RequestGuildMembers, opcode.InvalidSession, opcode.Hello,
-    opcode.HeartbeatAck,
+    opcode.HeartbeatAck, opcode.RequestSoundboardSounds,
+    opcode.RequestChannelInfo,
   ]
   list_each(known, fn(op) {
     opcode.from_int(opcode.to_int(op)) |> should.equal(op)
@@ -23,6 +24,8 @@ pub fn from_int_matches_wire_values_test() {
   opcode.from_int(7) |> should.equal(opcode.Reconnect)
   opcode.from_int(10) |> should.equal(opcode.Hello)
   opcode.from_int(11) |> should.equal(opcode.HeartbeatAck)
+  opcode.from_int(31) |> should.equal(opcode.RequestSoundboardSounds)
+  opcode.from_int(43) |> should.equal(opcode.RequestChannelInfo)
 }
 
 pub fn unknown_opcodes_never_crash_test() {

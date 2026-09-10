@@ -129,15 +129,30 @@ pub type RestResponse {
   )
 }
 
+/// Whose limit a rate limit response describes, per the docs'
+/// X-RateLimit-Scope header: `user` (this app alone, the default),
+/// `shared` (the bucket is shared with other apps), or `global` (every
+/// route, every app).
+pub type RateLimitScope {
+  ScopeUser
+  ScopeShared
+  ScopeGlobal
+}
+
 pub type RateLimitHeaders {
   RateLimitHeaders(
     limit: Option(Int),
     remaining: Option(Int),
-    reset: Option(Int),
+    /// Epoch seconds. Discord may send a fractional part, so this is a
+    /// float even though most responses carry a whole number.
+    reset: Option(Float),
     reset_after: Option(Float),
     bucket: Option(String),
     retry_after: Option(Int),
     is_global: Bool,
+    /// None when the header is absent or names a value the docs do
+    /// not: the three known scopes are user, shared, global.
+    scope: Option(RateLimitScope),
   )
 }
 
@@ -148,15 +163,28 @@ pub fn parse_rate_limit_headers(
   RateLimitHeaders(
     limit: header_int(headers, "X-RateLimit-Limit"),
     remaining: header_int(headers, "X-RateLimit-Remaining"),
-    reset: header_int(headers, "X-RateLimit-Reset"),
-    reset_after: header_float(headers, "X-RateLimit-Reset-After"),
+    reset: header_seconds(headers, "X-RateLimit-Reset"),
+    reset_after: header_seconds(headers, "X-RateLimit-Reset-After"),
     bucket: header(headers, "X-RateLimit-Bucket"),
     retry_after: header_int(headers, "Retry-After"),
     is_global: case header(headers, "X-RateLimit-Global") {
       Some(value) -> value == "true"
       None -> False
     },
+    scope: parse_scope(header(headers, "X-RateLimit-Scope")),
   )
+}
+
+/// The docs name exactly three scope values, lowercase. Anything else
+/// degrades to None, the same treatment a missing header gets: an
+/// unknown scope is no knowledge, not a guess.
+fn parse_scope(value: Option(String)) -> Option(RateLimitScope) {
+  case value {
+    Some("user") -> Some(ScopeUser)
+    Some("shared") -> Some(ScopeShared)
+    Some("global") -> Some(ScopeGlobal)
+    _ -> None
+  }
 }
 
 /// Case-insensitive: HTTP header names are case-insensitive per spec, and
@@ -179,13 +207,21 @@ fn header_int(headers: List(#(String, String)), name: String) -> Option(Int) {
   }
 }
 
-fn header_float(
+/// A seconds value that may arrive whole ("1470173023") or fractional
+/// ("1470173023.125"): Discord's reset timestamps are epoch seconds and
+/// may carry a fractional part, while float.parse demands the point.
+/// Anything that parses as neither is None.
+fn header_seconds(
   headers: List(#(String, String)),
   name: String,
 ) -> Option(Float) {
   case header(headers, name) {
-    Some(value) -> float.parse(value) |> option.from_result
     None -> None
+    Some(value) ->
+      case int.parse(value) {
+        Ok(whole) -> Some(int.to_float(whole))
+        Error(_) -> float.parse(value) |> option.from_result
+      }
   }
 }
 

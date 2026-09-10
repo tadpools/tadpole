@@ -135,3 +135,30 @@ pub fn close_code_names_test() {
   |> should.equal("tadpole keep-session close")
   gateway.close_code_name(4242) |> should.equal("close code 4242")
 }
+
+// first-heartbeat jitter
+
+pub fn jitter_zero_heartbeats_immediately_test() {
+  gateway.first_heartbeat_delay_ms(41_250, 0.0) |> should.equal(0)
+}
+
+pub fn jitter_one_is_the_full_interval_test() {
+  gateway.first_heartbeat_delay_ms(41_250, 1.0) |> should.equal(41_250)
+}
+
+pub fn jitter_halves_the_interval_test() {
+  gateway.first_heartbeat_delay_ms(41_250, 0.5) |> should.equal(20_625)
+}
+
+pub fn jitter_out_of_range_clamps_test() {
+  // A bad random source must not produce a negative or oversized
+  // delay: the docs' rule is jitter between 0 and 1.
+  gateway.first_heartbeat_delay_ms(10_000, -2.5) |> should.equal(0)
+  gateway.first_heartbeat_delay_ms(10_000, 99.0) |> should.equal(10_000)
+}
+
+pub fn jitter_works_on_small_intervals_test() {
+  // HELLO floored at 1s: even the smallest interval stays whole-ms
+  // exact under jitter.
+  gateway.first_heartbeat_delay_ms(1000, 0.25) |> should.equal(250)
+}

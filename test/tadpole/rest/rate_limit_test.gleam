@@ -205,6 +205,51 @@ pub fn fractional_retry_after_falls_back_test() {
   state.retry_after_ms |> should.equal(Some(1500))
 }
 
+// scope
+
+pub fn scope_rides_along_from_headers_test() {
+  let state =
+    rate_limit.update(
+      rate_limit.new(),
+      response(200, [
+        #("X-RateLimit-Bucket", "abcd1234"),
+        #("X-RateLimit-Scope", "shared"),
+      ]),
+    )
+
+  state.scope |> should.equal(Some(rest.ScopeShared))
+  // Scope is data, not a wait: a shared limit waits like a user one.
+  rate_limit.wait_ms(state, 0) |> should.equal(0)
+}
+
+pub fn scope_absent_downgrades_to_none_test() {
+  // The response is the whole truth: a response without a scope header
+  // downgrades a state that had one.
+  let shared =
+    rate_limit.update(
+      rate_limit.new(),
+      response(200, [#("X-RateLimit-Scope", "shared")]),
+    )
+  let stripped =
+    rate_limit.update(shared, response(200, [#("X-RateLimit-Bucket", "x")]))
+
+  stripped.scope |> should.equal(None)
+}
+
+pub fn scope_global_rides_along_test() {
+  let state =
+    rate_limit.update(
+      rate_limit.new(),
+      response(429, [
+        #("Retry-After", "2"),
+        #("X-RateLimit-Scope", "global"),
+      ]),
+    )
+
+  state.scope |> should.equal(Some(rest.ScopeGlobal))
+  state.retry_after_ms |> should.equal(Some(2000))
+}
+
 // associate
 
 pub fn associate_binds_bucket_test() {

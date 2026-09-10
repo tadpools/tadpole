@@ -72,7 +72,9 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import tadpole/error.{type BucketId}
-import tadpole/rest.{type RateLimitHeaders, type RestResponse}
+import tadpole/rest.{
+  type RateLimitHeaders, type RateLimitScope, type RestResponse,
+}
 
 /// A public record on purpose: states are plain data the caller juggles
 /// per bucket, same as RestRequest. Nothing here is an invariant worth
@@ -84,6 +86,10 @@ pub type BucketState {
     reset_after_ms: Option(Float),
     retry_after_ms: Option(Int),
     bucket: Option(BucketId),
+    /// Whose limit this bucket's headers describe: user, shared, or
+    /// global. Rides along from the headers; waits ignore it, because
+    /// a shared or global wait is the same shape as a user wait.
+    scope: Option(RateLimitScope),
   )
 }
 
@@ -95,6 +101,7 @@ pub fn new() -> BucketState {
     reset_after_ms: None,
     retry_after_ms: None,
     bucket: None,
+    scope: None,
   )
 }
 
@@ -108,7 +115,8 @@ pub fn new() -> BucketState {
 ///
 /// Only a 429 sets the retry window: `Retry-After` (seconds, converted to
 /// ms) first, then `X-RateLimit-Reset-After`, else `None`. A `Retry-After`
-/// on any other status is ignored.
+/// on any other status is ignored. The scope header rides along as data;
+/// it never changes a wait.
 pub fn update(state: BucketState, response: RestResponse) -> BucketState {
   case response.rate_limit_headers {
     None -> state
@@ -122,6 +130,7 @@ pub fn update(state: BucketState, response: RestResponse) -> BucketState {
           False -> None
         },
         bucket: headers.bucket |> option.map(error.bucket_id),
+        scope: headers.scope,
       )
   }
 }

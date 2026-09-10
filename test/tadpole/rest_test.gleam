@@ -63,8 +63,45 @@ pub fn parse_full_rate_limit_headers_test() {
 
   parsed.limit |> should.equal(Some(5))
   parsed.remaining |> should.equal(Some(0))
-  parsed.reset |> should.equal(Some(1_470_173_023))
+  parsed.reset |> should.equal(Some(1_470_173_023.0))
   parsed.bucket |> should.equal(Some("abcd1234"))
+  parsed.scope |> should.equal(None)
+}
+
+pub fn parse_fractional_reset_test() {
+  // The docs' reset is an epoch timestamp that may carry a fractional
+  // part; parsing it as an integer used to drop the whole field.
+  let parsed =
+    rest.parse_rate_limit_headers([#("X-RateLimit-Reset", "1470173023.125")])
+
+  parsed.reset |> should.equal(Some(1_470_173_023.125))
+}
+
+pub fn parse_scope_header_test() {
+  // The docs name exactly three scopes, lowercase.
+  rest.parse_rate_limit_headers([#("X-RateLimit-Scope", "user")]).scope
+  |> should.equal(Some(rest.ScopeUser))
+
+  rest.parse_rate_limit_headers([#("X-RateLimit-Scope", "shared")]).scope
+  |> should.equal(Some(rest.ScopeShared))
+
+  rest.parse_rate_limit_headers([#("X-RateLimit-Scope", "global")]).scope
+  |> should.equal(Some(rest.ScopeGlobal))
+}
+
+pub fn parse_unknown_scope_degrades_to_none_test() {
+  // An unknown scope is no knowledge, not a guess.
+  rest.parse_rate_limit_headers([#("X-RateLimit-Scope", "bot")]).scope
+  |> should.equal(None)
+
+  rest.parse_rate_limit_headers([#("X-RateLimit-Scope", "USER")]).scope
+  |> should.equal(None)
+}
+
+pub fn parse_scope_absent_is_none_test() {
+  // Most responses carry no scope header: it defaults to user.
+  rest.parse_rate_limit_headers([#("X-RateLimit-Limit", "5")]).scope
+  |> should.equal(None)
 }
 
 pub fn parse_missing_rate_limit_headers_test() {

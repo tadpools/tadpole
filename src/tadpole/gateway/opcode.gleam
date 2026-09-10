@@ -31,6 +31,14 @@ pub type Opcode {
   Hello
   /// 11 — receive. Heartbeat acknowledgment.
   HeartbeatAck
+  /// 31 — send. Request soundboard sounds for a set of guilds. Tadpole
+  /// does not send this yet; the slot exists so the table matches the
+  /// docs' opcode table.
+  RequestSoundboardSounds
+  /// 43 — send. Request ephemeral channel data for guild channels.
+  /// Send-only like 31; a shard that never sends it should never
+  /// receive one, and if one arrives anyway the shard ignores it.
+  RequestChannelInfo
   UnknownOpcode(Int)
 }
 
@@ -48,6 +56,8 @@ pub fn to_int(opcode: Opcode) -> Int {
     InvalidSession -> 9
     Hello -> 10
     HeartbeatAck -> 11
+    RequestSoundboardSounds -> 31
+    RequestChannelInfo -> 43
     UnknownOpcode(value) -> value
   }
 }
@@ -67,6 +77,8 @@ pub fn from_int(value: Int) -> Opcode {
     9 -> InvalidSession
     10 -> Hello
     11 -> HeartbeatAck
+    31 -> RequestSoundboardSounds
+    43 -> RequestChannelInfo
     _ -> UnknownOpcode(value)
   }
 }
@@ -85,6 +97,8 @@ pub fn name(opcode: Opcode) -> String {
     InvalidSession -> "INVALID_SESSION"
     Hello -> "HELLO"
     HeartbeatAck -> "HEARTBEAT_ACK"
+    RequestSoundboardSounds -> "REQUEST_SOUNDBOARD_SOUNDS"
+    RequestChannelInfo -> "REQUEST_CHANNEL_INFO"
     UnknownOpcode(value) -> "UNKNOWN(" <> int.to_string(value) <> ")"
   }
 }
