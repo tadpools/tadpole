@@ -28,7 +28,9 @@
 ////   One shard this milestone: `#(0, 1)`.
 //// - `url` — the full gateway URL including version and encoding, e.g.
 ////   `wss://gateway.discord.gg/?v=10&encoding=json` (bot.gleam's
-////   constant). No default; the caller always names one.
+////   constant). No default; the caller always names one. When READY
+////   names a resume_gateway_url, later resume reconnects dial that
+////   host instead, carrying this URL's query parameters.
 //// - `lifecycle` — `Some(subject)` to receive Lifecycle notices, `None`
 ////   to run silent.
 ////
@@ -137,6 +139,8 @@ import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/result
+import gleam/string
+import gleam/uri
 import logging
 import tadpole/error.{type TadpoleError}
 import tadpole/gateway
@@ -231,6 +235,65 @@ pub fn on_invalid_session(resumable: Bool) -> CloseAction {
   }
 }
 
+/// The URL the next connection dials. A resume dials the gateway URL
+/// Discord handed out at READY — the docs: it replaces the URL first
+/// connected with, carrying the same query parameters — and every
+/// other connection dials the configured URL. When READY offered no
+/// resume URL, the configured URL keeps working. Pure so tests pin
+/// the choice.
+pub fn connect_url(
+  config_url: String,
+  resume_gateway_url: Option(String),
+  resume_next: Bool,
+) -> String {
+  case resume_next, resume_gateway_url {
+    True, Some(url) -> resume_dial_url(url, config_url)
+    _, _ -> config_url
+  }
+}
+
+/// READY's resume_gateway_url arrives bare — no path, no query — so
+/// the dial URL is that host plus the configured connection's query
+/// parameters: version and encoding stay the same, the host follows
+/// Discord's instruction. A missing path becomes "/" so the handshake
+/// request-target is never empty; a resume URL that already names a
+/// path (proxy setups) keeps it, and one that somehow already carries
+/// a query rules over the config's.
+fn resume_dial_url(base: String, config_url: String) -> String {
+  case uri.parse(base) {
+    Ok(parsed) -> {
+      let base = case parsed.path {
+        "" -> with_path_separator(base)
+        _ -> base
+      }
+      case parsed.query {
+        Some(_) -> base
+        None ->
+          case uri.parse(config_url) {
+            Ok(config) ->
+              case config.query {
+                Some(query) -> base <> "?" <> query
+                None -> base
+              }
+            Error(_) -> base
+          }
+      }
+    }
+    // An unparseable resume URL dials as-is; the connect failure path
+    // reports it through lifecycle like any other bad URL.
+    Error(_) -> base
+  }
+}
+
+/// An empty path means the URL is scheme://authority plus, maybe, a
+/// query — the separator goes between the authority and the query.
+fn with_path_separator(url: String) -> String {
+  case string.split_once(url, "?") {
+    Ok(#(before_query, query)) -> before_query <> "/?" <> query
+    Error(_) -> url <> "/"
+  }
+}
+
 /// Start one shard: an actor that connects to `config.url`, identifies
 /// (or resumes a stored session), heartbeats on Discord's interval, and
 /// dispatches typed events to `events`. `start` itself never fails on
@@ -272,6 +335,7 @@ pub fn start(
           connection: None,
           monitor: None,
           resume_next: False,
+          resume_gateway_url: None,
           attempts: 0,
           closed_handled: False,
           heartbeat_timer: None,
@@ -311,6 +375,10 @@ type ShardState {
     monitor: Option(process.Monitor),
     /// The next connection should try RESUME before IDENTIFY.
     resume_next: Bool,
+    /// The gateway URL READY named for later resumes, or None while no
+    /// READY has offered one. Only dialed when the next connection
+    /// resumes; identifies always use the configured URL.
+    resume_gateway_url: Option(String),
     /// Failed connects/reconnects since the last HELLO.
     attempts: Int,
     /// This connection's close has already been handled; swallow late
@@ -386,12 +454,17 @@ fn dispatch(
       actor.continue(state)
     }
     Some(name) -> {
-      // READY carries the session id RESUME needs later. A targeted
-      // decoder reads it straight from the raw frame — a READY whose
-      // other fields fail to decode still keeps the session alive.
-      let state = case name, session_id_from_ready(frame.raw) {
-        "READY", Some(session_id) ->
-          ShardState(..state, session_id: Some(session_id))
+      // READY carries the session id RESUME needs later, plus the
+      // gateway URL that resume should dial. Targeted decoders read
+      // both straight from the raw frame — a READY whose other fields
+      // fail to decode still keeps the session alive.
+      let state = case name, ready_session_fields(frame.raw) {
+        "READY", Some(#(session_id, resume_url)) ->
+          ShardState(
+            ..state,
+            session_id: Some(session_id),
+            resume_gateway_url: resume_url,
+          )
         _, _ -> state
       }
       let event = case events.decode(name, frame.raw) {
@@ -448,6 +521,7 @@ fn on_hello(
           ..state,
           session_id: None,
           sequence: None,
+          resume_gateway_url: None,
           resume_next: False,
         ),
       )
@@ -581,7 +655,9 @@ fn shutdown(state: ShardState) -> actor.Next(ShardState, ShardMsg) {
 /// Connect (or reconnect). Called from the initialiser and from
 /// ReconnectNow; never fails the actor — failures schedule a retry.
 fn establish(state: ShardState) -> ShardState {
-  case transport.connect(state.config.url, state.inbound, state.closed) {
+  let url =
+    connect_url(state.config.url, state.resume_gateway_url, state.resume_next)
+  case transport.connect(url, state.inbound, state.closed) {
     Ok(conn) -> {
       let pid = transport.owner_pid(conn)
       // The transport dies with the socket; that death must not take the
@@ -617,7 +693,13 @@ fn close_and_reconnect(
   let state = close_socket(state, transport.KeepSession)
   let state = case forget_session {
     True ->
-      ShardState(..state, session_id: None, sequence: None, resume_next: False)
+      ShardState(
+        ..state,
+        session_id: None,
+        sequence: None,
+        resume_next: False,
+        resume_gateway_url: None,
+      )
     False -> ShardState(..state, resume_next: will_resume)
   }
   schedule_reconnect(ShardState(..state, closed_handled: True))
@@ -692,19 +774,27 @@ fn notify(lifecycle: Option(Subject(Lifecycle)), event: Lifecycle) -> Nil {
   }
 }
 
-/// READY's `d` is the only place a session id is handed out. Read just
-/// that field, straight from the raw frame.
-fn session_id_from_ready(raw: String) -> Option(String) {
+/// READY's `d` is the only place a session id is handed out, and the
+/// same object names the gateway host later resumes should dial. Read
+/// just those two fields, straight from the raw frame:
+/// resume_gateway_url is optional per the docs, session_id is not, and
+/// a frame missing the id changes nothing.
+fn ready_session_fields(raw: String) -> Option(#(String, Option(String))) {
   let session_decoder = {
     use session_id <- d.field("session_id", d.string)
-    d.success(session_id)
+    use resume_url <- d.optional_field(
+      "resume_gateway_url",
+      None,
+      d.optional(d.string),
+    )
+    d.success(#(session_id, resume_url))
   }
   let decoder = {
-    use session_id <- d.field("d", session_decoder)
-    d.success(session_id)
+    use fields <- d.field("d", session_decoder)
+    d.success(fields)
   }
   case json.parse(raw, decoder) {
-    Ok(session_id) -> Some(session_id)
+    Ok(fields) -> Some(fields)
     Error(_) -> None
   }
 }

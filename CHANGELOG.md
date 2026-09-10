@@ -41,6 +41,11 @@ gateway connection with a real token.
   docs' table exactly: 4003 reconnects fresh, 4004 and 4010-4014 stop
   instead of backing off forever (tadpole/gateway/transport,
   tadpole/gateway/shard).
+- resume reconnects dial the gateway URL READY names
+  (resume_gateway_url) instead of re-dialing the configured one,
+  carrying the original connection's query parameters; without a
+  captured URL the configured one keeps working
+  (tadpole/gateway/shard).
 - typed events: Ready, MessageCreate, MessageUpdate, MessageDelete,
   Resumed, GuildCreate, GuildDelete, and Unknown as the catch-all for
   anything not modeled (tadpole/gateway/events).
