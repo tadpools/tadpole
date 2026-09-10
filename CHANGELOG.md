@@ -4,14 +4,15 @@ Versions are calendar-based (YYYY.MILESTONE.PATCH). Before the first
 publish there are no compatibility promises; the tests and this changelog
 are the contract.
 
-## 2026.2.0 - first-swim (unreleased, live check passed)
+## 2026.2.0 - first-swim (published 2026-09-10)
 
 The first vertical slice: a bot can connect to the gateway, receive
 events, and make REST calls. Tests run offline against fixtures, a
 seeded property harness, and an env-gated live gate (TADPOLE_TOKEN set
-runs the publish gate from CONTRIBUTING; unset, it skips). The live
-check has passed: REST authentication and a typed READY over a real
-gateway connection with a real token.
+runs the publish gate from CONTRIBUTING; unset, it skips). Published
+after the live gate passed twice over: REST authentication and a typed
+READY over a real gateway connection, plus a live forced-reconnect
+resume verified end to end.
 
 - model objects and decoders: user, message (full form plus the partial
   MESSAGE_UPDATE form), guild with its unavailable form, channel, and
