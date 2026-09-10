@@ -36,7 +36,8 @@ gateway connection with a real token.
   1001, which Discord's docs name as session-invalidating, so every
   reconnect silently degraded to a fresh identify; those paths now
   send 4900 (keep the session) and decide the resume upfront instead
-  of trusting whatever code echoes back. The close ladder follows the
+  of trusting whatever code echoes back. Zombie kills attempt the
+  resume too, per the docs' zombie rule. The close ladder follows the
   docs' table exactly: 4003 reconnects fresh, 4004 and 4010-4014 stop
   instead of backing off forever (tadpole/gateway/transport,
   tadpole/gateway/shard).

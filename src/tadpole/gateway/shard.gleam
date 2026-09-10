@@ -63,7 +63,7 @@
 //// | op 9 Invalid Session, `d` = true | `Resume` — outranks whatever close code follows |
 //// | op 9 Invalid Session, `d` = false | `IdentifyFresh`; the stored session is forgotten |
 //// | transport died with no close frame | treated as 1006 |
-//// | 3 missed heartbeat ACKs | close, forget the session, reconnect fresh |
+//// | 3 missed heartbeat ACKs | close with a keep-session code, reconnect, attempt to resume — the docs' zombie rule; a failed resume falls through to fresh |
 ////
 //// ## Heartbeat and zombie rules
 ////
@@ -503,9 +503,14 @@ fn on_tick(state: ShardState) -> actor.Next(ShardState, ShardMsg) {
             logging.Warning,
             "shard: "
               <> int.to_string(gateway.max_missed_acks)
-              <> " heartbeat acks missed; reconnecting fresh",
+              <> " heartbeat acks missed; reconnecting, resume if the "
+              <> "session is still valid",
           )
-          actor.continue(close_and_reconnect(state, abnormal_close, False, True))
+          // The docs' zombie rule: terminate with a close code outside
+          // 1000/1001, reconnect, and attempt to Resume. The session
+          // lives server-side; missed acks only mean this transport is
+          // dead. If the resume fails, op 9 falls through to fresh.
+          actor.continue(close_and_reconnect(state, abnormal_close, True, False))
         }
       }
     }

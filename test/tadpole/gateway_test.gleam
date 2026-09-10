@@ -131,5 +131,7 @@ pub fn close_code_names_test() {
   gateway.close_code_name(1006) |> should.equal("abnormal closure")
   gateway.close_code_name(4004) |> should.equal("authentication failed")
   gateway.close_code_name(4014) |> should.equal("disallowed intents")
+  gateway.close_code_name(4900)
+  |> should.equal("tadpole keep-session close")
   gateway.close_code_name(4242) |> should.equal("close code 4242")
 }

@@ -126,6 +126,10 @@ pub fn close_code_name(code: Int) -> String {
     4012 -> "invalid API version"
     4013 -> "invalid intents"
     4014 -> "disallowed intents"
+    // Tadpole's own keep-session wire code, never sent by Discord. It
+    // shows up in lifecycle notices for deliberate resume-intended
+    // closes (op 7 reconnect, resumable op 9, zombie kill).
+    4900 -> "tadpole keep-session close"
     _ -> "close code " <> int.to_string(code)
   }
 }
