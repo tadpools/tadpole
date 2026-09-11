@@ -117,8 +117,8 @@
 ////   }
 //// }
 ////
-//// fn join_names(bits: List(Int)) -> String {
-////   bits
+//// fn join_names(intents: List(intent.Intent)) -> String {
+////   intents
 ////   |> list.map(intent.intent_name)
 ////   |> string.join(", ")
 //// }
