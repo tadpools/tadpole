@@ -3,8 +3,19 @@
 //// tracking), sharding math. The shard actor in tadpole/gateway/shard
 //// applies these decisions on a live connection.
 ////
-//// Internals: total functions over integers, so every decision the
-//// actor makes is testable without a socket. See also
+//// ## When you reach for this
+////
+//// Through [`tadpole/gateway/shard`](gateway/shard.html) — the shard
+//// actor calls `can_resume`, `should_reconnect`, `backoff_ms`,
+//// `first_heartbeat_delay_ms`, and `close_code_name` on a live
+//// connection. Directly when you need a close code's name (the bot
+//// runner logs quote `close_code_name`) or the shard a guild belongs
+//// to (`guild_shard_id`).
+////
+//// ## Internals
+////
+//// Total functions over integers, so every decision the actor makes is
+//// testable without a socket. See also
 //// [`tadpole/gateway/shard`](gateway/shard.html) for the actor, and
 //// [`tadpole/bot`](bot.html), whose disconnect logs quote
 //// `close_code_name`.
@@ -12,6 +23,8 @@
 import gleam/float
 import gleam/int
 
+/// The shard's connection lifecycle, from cold start through reconnect.
+/// The shard actor owns this state; nothing outside should depend on it.
 pub type ShardState {
   Disconnected
   Connecting
@@ -56,8 +69,10 @@ pub fn should_reconnect(close_code: Int) -> Bool {
   }
 }
 
+/// Starting backoff: 1 second.
 pub const initial_backoff_ms = 1000
 
+/// Backoff cap: 60 seconds.
 pub const max_backoff_ms = 60_000
 
 /// Exponential with a cap: 1s, 2s, 4s, 8s ... 60s. No jitter; Discord's
@@ -83,6 +98,8 @@ fn int_power(base: Int, exponent: Int) -> Int {
   }
 }
 
+/// The shard's heartbeat bookkeeping: interval, last sent sequence, and
+/// how many ACKs have been missed since the last heartbeat.
 pub type HeartbeatState {
   HeartbeatState(interval_ms: Int, last_sent_sequence: Int, missed_acks: Int)
 }
@@ -97,8 +114,12 @@ pub fn first_heartbeat_delay_ms(interval_ms: Int, jitter: Float) -> Int {
   float.round(int.to_float(interval_ms) *. float.clamp(jitter, 0.0, 1.0))
 }
 
+/// How many heartbeats can go un-ACKed before the connection is
+/// considered dead (zombie). 3 missed ACKs triggers a reconnect.
 pub const max_missed_acks = 3
 
+/// Reset the missed-ACK counter to zero — the server acknowledged our
+/// heartbeat.
 pub fn ack_received(state: HeartbeatState) -> HeartbeatState {
   HeartbeatState(..state, missed_acks: 0)
 }
@@ -117,6 +138,9 @@ pub fn guild_shard_id(guild_id: Int, shard_count: Int) -> Int {
   }
 }
 
+/// Human-readable name for a gateway close code, matching Discord's docs
+/// table. Tadpole's own 4900 is "tadpole keep-session close"; unknown
+/// codes render as "close code N".
 pub fn close_code_name(code: Int) -> String {
   case code {
     1000 -> "normal closure"

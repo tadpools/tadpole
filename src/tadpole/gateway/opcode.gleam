@@ -3,6 +3,13 @@
 //// and are ignored by the shard. Pure data; see
 //// [`tadpole/gateway/frame`](frame.html) for the envelopes that carry
 //// these.
+////
+//// ## When you reach for this
+////
+//// Through [`tadpole/gateway/frame`](frame.html) — the frame parser
+//// returns `Opcode` values; the shard actor matches on them. Directly
+//// when you need an opcode's wire integer (`to_int`) or Discord name
+//// (`name`) for logging.
 
 import gleam/int
 
@@ -42,6 +49,7 @@ pub type Opcode {
   UnknownOpcode(Int)
 }
 
+/// The wire integer for this opcode, matching Discord's gateway docs.
 pub fn to_int(opcode: Opcode) -> Int {
   case opcode {
     Dispatch -> 0
@@ -83,6 +91,8 @@ pub fn from_int(value: Int) -> Opcode {
   }
 }
 
+/// Discord's uppercase name for this opcode, e.g. "DISPATCH",
+/// "HEARTBEAT". Unknown opcodes render as "UNKNOWN(N)".
 pub fn name(opcode: Opcode) -> String {
   case opcode {
     Dispatch -> "DISPATCH"
