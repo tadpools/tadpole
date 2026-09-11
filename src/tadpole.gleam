@@ -93,7 +93,7 @@
 import gleam/int
 import gleam/string
 import tadpole/error.{type TadpoleError, InvalidTokenFormat, MissingToken}
-import tadpole/intent.{type Intents}
+import tadpole/intent.{type Intent, type Intents}
 import tadpole/rest.{type RestClient}
 
 pub type LogLevel {
@@ -171,7 +171,7 @@ pub fn validate(config: Config) -> Result(ValidatedConfig, TadpoleError) {
   }
 }
 
-pub fn privileged_intents_requested(config: Config) -> List(Int) {
+pub fn privileged_intents_requested(config: Config) -> List(Intent) {
   intent.check_privileged(config.intents)
 }
 
