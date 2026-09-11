@@ -1,7 +1,14 @@
 //// The Discord channel object, trimmed to what the first slice reads.
 //// `type` is reserved in Gleam, so Discord's key lands as channel_type.
 ////
-//// Option fields mean Discord omits or nulls them for some channel
+//// ## When you reach for this
+////
+//// Through [`tadpole/gateway/events`](../gateway/events.html) as
+//// `ChannelCreate`, `ChannelUpdate`, and `ChannelDelete` payloads. The
+//// record carries the fields a bot needs: id, type, name, guild_id, and
+//// topic. DMs have `None` for name and guild_id.
+////
+//// ## Option fields
 //// kinds: `name` and `guild_id` are `None` for DMs and group DMs (which
 //// have no name and no guild), and `topic` is null in most non-text
 //// channels. `last_message_id` is a pointer to the most recent message

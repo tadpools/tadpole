@@ -2,6 +2,12 @@
 //// Severity decides how much personality the message gets — auth failures
 //// get none, ordinary hiccups get one friendly line.
 ////
+//// ## When you reach for this
+////
+//// Through [`tadpole/guide`](../guide.html) — the guide's bot runner
+//// calls `render_error` to log `TadpoleError` values. Directly when you
+//// need a severity for programmatic dispatch (`severity_of`).
+////
 //// ## The severity ladder
 ////
 //// Every variant maps to one of four severities in `severity_of`, and
@@ -37,6 +43,8 @@ import tadpole/error.{
   UnknownEvent, redact_token, route_to_string,
 }
 
+/// How serious the error is, controlling how much whimsy the rendered
+/// message carries. More severe = quieter voice, concrete next steps.
 pub type Severity {
   Light
   Actionable
@@ -44,6 +52,9 @@ pub type Severity {
   Internal
 }
 
+/// Map an error to its severity. `GatewayClosedUnexpectedly` is the one
+/// variant that straddles: `Actionable` when the session can resume,
+/// `Severe` when it cannot.
 pub fn severity_of(error: TadpoleError) -> Severity {
   case error {
     MissingToken -> Severe
@@ -72,6 +83,9 @@ pub fn severity_of(error: TadpoleError) -> Severity {
   }
 }
 
+/// Render a `TadpoleError` into a human-readable message. The token is
+/// redacted everywhere it could surface; tests assert a planted full
+/// token never appears in the output.
 pub fn render_error(error: TadpoleError) -> String {
   let #(title, body) = describe(error)
   let prefix = voice_prefix(severity_of(error))
