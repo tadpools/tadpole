@@ -3,26 +3,38 @@
 //// payloads can never break the envelope parser.
 //// Optional fields use sentinel defaults (s = -1, t = "").
 ////
-//// Internals: [`tadpole/gateway/transport`](transport.html) calls
-//// `parse` on everything the gateway sends; [`tadpole/gateway/shard`](shard.html)
-//// builds IDENTIFY/RESUME/HEARTBEAT payloads and reads HELLO and
-//// InvalidSession through the helpers here. `FrameError` covers the only
-//// two ways an envelope can fail: not JSON at all (`FrameNotJson`), or
-//// valid JSON carrying no integer `op` (`FrameMissingOpcode`). Everything
-//// after `op` is someone else's decoder problem, so hostile payloads
-//// degrade to one of those two values and never crash the connection.
-//// See also [`tadpole/gateway/opcode`](opcode.html) for the `op` values.
+//// ## When you reach for this
+////
+//// Through [`tadpole/gateway/shard`](shard.html) — the shard actor calls
+//// `parse` on every incoming payload, reads HELLO and InvalidSession
+//// through the helpers, and builds IDENTIFY/RESUME/HEARTBEAT with the
+//// payload helpers. Directly when you need `parse_gateway_bot` for the
+//// initial websocket URL.
+////
+//// ## Internals
+////
+//// [`tadpole/gateway/transport`](transport.html) calls `parse` on
+//// everything the gateway sends. `FrameError` covers the only two ways
+//// an envelope can fail: not JSON at all (`FrameNotJson`), or valid JSON
+//// carrying no integer `op` (`FrameMissingOpcode`). Everything after `op`
+//// is someone else's decoder problem, so hostile payloads degrade to one
+//// of those two values and never crash the connection. See also
+//// [`tadpole/gateway/opcode`](opcode.html) for the `op` values.
 
 import gleam/dynamic/decode as d
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import tadpole/gateway/opcode.{type Opcode}
 
+/// Why a gateway payload failed to parse as a frame. Hostile input
+/// degrades to one of these two; the shard never crashes on bad data.
 pub type FrameError {
   FrameNotJson
   FrameMissingOpcode
 }
 
+/// A parsed gateway envelope: opcode, optional sequence number, optional
+/// event name, and the raw JSON (passed to event-specific decoders).
 pub type Frame {
   Frame(
     opcode: Opcode,
@@ -96,6 +108,8 @@ pub fn invalid_session_resumable(payload: String) -> Result(Bool, FrameError) {
   }
 }
 
+/// Build a HEARTBEAT payload. `sequence` is the last dispatch sequence
+/// number, or null if none has been received yet.
 pub fn heartbeat_payload(sequence: Option(Int)) -> String {
   let data = case sequence {
     Some(seq) -> json.int(seq)
@@ -129,6 +143,8 @@ pub fn identify_payload(
   )
 }
 
+/// Build a RESUME payload. The session_id and sequence are from the
+/// last READY and the last dispatch event.
 pub fn resume_payload(
   token: String,
   session_id: String,
@@ -149,6 +165,8 @@ pub type GatewayBotInfo {
   GatewayBotInfo(url: String, shards: Int)
 }
 
+/// Parse the GET /gateway/bot response into the websocket URL and shard
+/// count that a shard fleet needs.
 pub fn parse_gateway_bot(
   payload: String,
 ) -> Result(GatewayBotInfo, FrameError) {

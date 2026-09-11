@@ -1,10 +1,19 @@
 //// Gateway event dispatch table: event name to category and required
 //// intents. Unknown names fall through as unknown, never a crash.
 ////
-//// Internals: a lookup table plus `all_known_names`, so tests can pin
-//// every known name against the real Discord list. The typed layer on
-//// top is [`tadpole/gateway/events`](gateway/events.html); the bits
-//// `required_intents` names come from [`tadpole/intent`](intent.html).
+//// ## When you reach for this
+////
+//// Through [`tadpole/gateway/events`](gateway/events.html) — the typed
+//// event layer uses `category` to decide which decoder to run. Directly
+//// when you need a specific event's required intent bits
+//// (`required_intents`) or the full list of known event names
+//// (`all_known_names`).
+////
+//// ## Internals
+////
+//// A lookup table plus `all_known_names`, so tests can pin every known
+//// name against the real Discord list. The bits `required_intents` names
+//// come from [`tadpole/intent`](intent.html).
 
 import gleam/option.{type Option, None, Some}
 import gleam/set.{type Set}
@@ -23,6 +32,8 @@ pub type Category {
   Other
 }
 
+/// Map a gateway event name to its category. Unknown names land in
+/// `Other` — never a crash.
 pub fn category(event_name: String) -> Category {
   case event_name {
     "READY" -> Lifecycle
@@ -107,6 +118,8 @@ pub fn category(event_name: String) -> Category {
   }
 }
 
+/// True when the event name appears in this table — the shard can
+/// decode it. Unknown names are not errors; they land in `Other`.
 pub fn is_known(event_name: String) -> Bool {
   category(event_name) != Other
 }
@@ -167,10 +180,12 @@ pub fn all_known_names() -> List(String) {
   ]
 }
 
+/// Set of every known event name, for fast membership checks.
 pub fn names_set() -> Set(String) {
   set.from_list(all_known_names())
 }
 
+/// The event's category if it is in this table, None otherwise.
 pub fn maybe_known(event_name: String) -> Option(Category) {
   case is_known(event_name) {
     True -> Some(category(event_name))

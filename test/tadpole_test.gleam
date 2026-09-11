@@ -33,14 +33,14 @@ pub fn config_with_intents_test() {
     tadpole.new("token")
     |> tadpole.with_intents(
       intent.new()
-      |> intent.enable(intent.guilds)
-      |> intent.enable(intent.guild_messages),
+      |> intent.enable(intent.Guilds)
+      |> intent.enable(intent.GuildMessages),
     )
 
   let enabled = intent.enabled(config.intents)
   list.length(enabled) |> should.equal(2)
-  list.contains(enabled, intent.guilds) |> should.be_true
-  list.contains(enabled, intent.guild_messages) |> should.be_true
+  list.contains(enabled, intent.Guilds) |> should.be_true
+  list.contains(enabled, intent.GuildMessages) |> should.be_true
 }
 
 pub fn config_with_shards_test() {
@@ -111,24 +111,22 @@ pub fn privileged_intents_requested_reports_test() {
     )
     |> tadpole.with_intents(
       intent.new()
-      |> intent.enable(intent.guild_messages)
-      |> intent.enable(intent.message_content),
+      |> intent.enable(intent.GuildMessages)
+      |> intent.enable(intent.MessageContent),
     )
 
   // Validation does NOT fail on privileged intents (Discord enforces at
   // Identify); Tadpole reports them so the caller can warn.
   let assert Ok(_) = tadpole.validate(config)
   tadpole.privileged_intents_requested(config)
-  |> list.contains(intent.message_content)
+  |> list.contains(intent.MessageContent)
   |> should.be_true
 }
 
 pub fn no_privileged_intents_reports_empty_test() {
   let config =
     tadpole.new("token")
-    |> tadpole.with_intents(
-      intent.new() |> intent.enable(intent.guild_messages),
-    )
+    |> tadpole.with_intents(intent.new() |> intent.enable(intent.GuildMessages))
 
   tadpole.privileged_intents_requested(config)
   |> list.length
@@ -148,9 +146,7 @@ pub fn describe_config_mentions_shards_and_intents_test() {
   let config =
     tadpole.new("MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5")
     |> tadpole.with_shards(3)
-    |> tadpole.with_intents(
-      intent.new() |> intent.enable(intent.guild_messages),
-    )
+    |> tadpole.with_intents(intent.new() |> intent.enable(intent.GuildMessages))
 
   let described = tadpole.describe_config(config)
   string.contains(described, "3 shard(s)") |> should.be_true
@@ -160,11 +156,11 @@ pub fn describe_config_mentions_shards_and_intents_test() {
 pub fn intents_are_composable_test() {
   let intents =
     intent.new()
-    |> intent.enable(intent.guilds)
-    |> intent.enable(intent.guild_messages)
-    |> intent.enable(intent.message_content)
+    |> intent.enable(intent.Guilds)
+    |> intent.enable(intent.GuildMessages)
+    |> intent.enable(intent.MessageContent)
 
-  intent.has(intents, intent.guilds) |> should.be_true
-  intent.has(intents, intent.guild_messages) |> should.be_true
-  intent.has(intents, intent.message_content) |> should.be_true
+  intent.has(intents, intent.Guilds) |> should.be_true
+  intent.has(intents, intent.GuildMessages) |> should.be_true
+  intent.has(intents, intent.MessageContent) |> should.be_true
 }

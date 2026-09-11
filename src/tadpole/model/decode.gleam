@@ -4,6 +4,15 @@
 //// call these with the event name they know; the model-level from_json
 //// helpers leave the event empty.
 ////
+//// ## When you reach for this
+////
+//// Through the model decoders (`user.decoder()`, `message.decoder()`,
+//// etc.) — they call `snowflake_id` and `from_json` internally. Directly
+//// when you write a decoder for a new Discord model and need validated
+//// snowflake fields.
+////
+//// ## Internals
+////
 //// `from_json` takes either a bare event object or a full gateway frame
 //// envelope with the event object under `d`, because both shapes arrive
 //// in practice: the shard decodes dispatch frames as the envelope, the

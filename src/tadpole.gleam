@@ -40,7 +40,7 @@
 //// | [`tadpole/bot`](tadpole/bot.html) | the runner: `start`, `run`, `send_message`, `reply`, `stop`; one shard | beginner |
 //// | [`tadpole/guide`](tadpole/guide.html) | the walkthrough | beginner |
 //// | [`tadpole/gateway/events`](tadpole/gateway/events.html) | the typed `Event` type: Ready, MessageCreate, Unknown, ... | beginner |
-//// | [`tadpole/intent`](tadpole/intent.html) | intents bitfield, privileged-intent detection | beginner |
+//// | [`tadpole/intent`](tadpole/intent.html) | typed intent variants, privileged-intent detection | beginner |
 //// | [`tadpole/error`](tadpole/error.html) | every failure as a typed value | beginner |
 //// | [`tadpole/error/render`](tadpole/error/render.html) | errors to human text; token redacted everywhere | beginner |
 //// | [`tadpole/types/ids`](tadpole/types/ids.html) | opaque IDs, so a UserId cannot go where a GuildId goes | beginner |
@@ -79,21 +79,20 @@
 //// - interactions and slash commands
 //// - embeds, file uploads, message components
 //// - voice
-//// - a cache; every event is what Discord just sent, nothing is
-////   remembered between events
+//// - a cache (by design; every event is what Discord just sent)
 //// - graceful shutdown; `bot.stop` closes the gateway and that is all
 ////
 //// Each module's header declares a stability tier (Stable, Growing,
 //// Experimental) under the policy in CONTRIBUTING.md. Most of this
 //// slice is Growing or Experimental.
 ////
-//// The publish gate — a live gateway roundtrip plus one real REST
-//// call — has been tripped. Hex is the next milestone.
+//// Published to hex as 2026.2.0. The current milestone (2026.3.0)
+//// hardens the intent API and docs before the next publish.
 
 import gleam/int
 import gleam/string
 import tadpole/error.{type TadpoleError, InvalidTokenFormat, MissingToken}
-import tadpole/intent.{type Intents}
+import tadpole/intent.{type Intent, type Intents}
 import tadpole/rest.{type RestClient}
 
 pub type LogLevel {
@@ -171,7 +170,7 @@ pub fn validate(config: Config) -> Result(ValidatedConfig, TadpoleError) {
   }
 }
 
-pub fn privileged_intents_requested(config: Config) -> List(Int) {
+pub fn privileged_intents_requested(config: Config) -> List(Intent) {
   intent.check_privileged(config.intents)
 }
 

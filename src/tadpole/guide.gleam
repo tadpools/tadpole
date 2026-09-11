@@ -65,9 +65,9 @@
 ////     tadpole.new(token)
 ////     |> tadpole.with_intents(
 ////       intent.new()
-////       |> intent.enable(intent.guilds)
-////       |> intent.enable(intent.guild_messages)
-////       |> intent.enable(intent.message_content),
+////       |> intent.enable(intent.Guilds)
+////       |> intent.enable(intent.GuildMessages)
+////       |> intent.enable(intent.MessageContent),
 ////     )
 ////
 ////   // Message Content is privileged: without the portal toggle Discord
@@ -117,8 +117,8 @@
 ////   }
 //// }
 ////
-//// fn join_names(bits: List(Int)) -> String {
-////   bits
+//// fn join_names(intents: List(intent.Intent)) -> String {
+////   intents
 ////   |> list.map(intent.intent_name)
 ////   |> string.join(", ")
 //// }
@@ -169,9 +169,9 @@
 //// ## Privileged intents
 ////
 //// Three gateway intents sit behind toggles in the Developer Portal:
-//// Server Members (`intent.guild_members`), Presence
-//// (`intent.guild_presences`), and Message Content
-//// (`intent.message_content`). These are the three entries in
+//// Server Members (`intent.GuildMembers`), Presence
+//// (`intent.GuildPresences`), and Message Content
+//// (`intent.MessageContent`). These are the three entries in
 //// `intent.privileged`. Requesting any of them without the matching
 //// toggle ends the connection.
 ////

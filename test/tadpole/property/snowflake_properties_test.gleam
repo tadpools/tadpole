@@ -117,3 +117,44 @@ pub fn sorting_by_id_sorts_by_timestamp_test() {
     },
   )
 }
+
+pub fn increasing_timestamps_produce_increasing_ids_test() {
+  property.check(
+    "snowflakes from later timestamps are strictly greater",
+    fn(pair) {
+      let #(a, b) = pair
+      int.to_string(a) <> " < " <> int.to_string(b)
+    },
+    property.map2(
+      property.int_in(0, snowflake.max_inner_timestamp - 1),
+      property.int_in(0, snowflake.max_inner_timestamp),
+      fn(a, b) {
+        // Ensure a < b so we test strict monotonicity.
+        case a < b {
+          True -> #(a, b)
+          False -> #(b, a + 1)
+        }
+      },
+    ),
+    fn(pair) {
+      let #(ts_lo, ts_hi) = pair
+      let sf_lo = int.bitwise_shift_left(ts_lo, 22)
+      let sf_hi = int.bitwise_shift_left(ts_hi, 22)
+      sf_lo < sf_hi
+    },
+  )
+}
+
+pub fn timestamp_is_within_valid_window_test() {
+  property.check(
+    "extracted timestamp is discord_epoch + inner_ts, always in range",
+    int.to_string,
+    snowflake_int(),
+    fn(value) {
+      let ts = snowflake.timestamp_ms(valid(value))
+      let inner = int.bitwise_shift_right(value, 22)
+      // The timestamp must equal discord_epoch + inner_ts.
+      ts == snowflake.discord_epoch + inner
+    },
+  )
+}

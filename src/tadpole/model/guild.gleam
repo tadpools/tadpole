@@ -2,7 +2,14 @@
 //// payloads are enormous and vary by endpoint; later milestones widen
 //// this record as REST wiring needs more of it.
 ////
-//// Two records for two payloads:
+//// ## When you reach for this
+////
+//// Through [`tadpole/gateway/events`](../gateway/events.html) as
+//// `GuildCreate`'s payload (the full `Guild`) and `Ready`'s `guilds`
+//// array (`UnavailableGuild`). A guild from `endpoints` is the same
+//// `Guild` record.
+////
+//// ## Two records for two payloads:
 ////
 //// - `Guild` — what GUILD_CREATE carries (see
 ////   [`tadpole/gateway/events`](../gateway/events.html)). `member_count`

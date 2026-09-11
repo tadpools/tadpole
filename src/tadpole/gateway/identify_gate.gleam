@@ -4,6 +4,14 @@
 //// later milestone; until then the pacing lives here as documentation
 //// and a conservative default. A fleet that ignores it meets close code
 //// 4005 (already authenticated) or session-start-limit 429s.
+////
+//// ## When you reach for this
+////
+//// When you build a multi-shard fleet — call `identify_delay_ms` to get
+//// the wait between consecutive IDENTIFYs. Not wired into anything yet;
+//// [`tadpole/bot`](../bot.html) runs one shard, which never needs
+//// pacing.
+////
 //// Stability: Experimental.
 ////
 //// Not wired into anything yet — [`tadpole/bot`](../bot.html) runs one

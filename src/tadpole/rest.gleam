@@ -1,6 +1,22 @@
 //// REST request builders, rate-limit header parsing, response checks.
 //// Rate-limit state is derived from response headers and 429 bodies,
 //// never from a hardcoded table.
+////
+//// ## When you reach for this
+////
+//// Building a request to send through [`tadpole/rest/execute`](rest/execute.html).
+//// The helpers here (`get`, `post`, `put`, `patch`, `delete`) construct
+//// the request; execute sends it and handles retries. For simple calls,
+//// [`tadpole/rest/endpoints`](rest/endpoints.html) wraps the whole
+//// round-trip with typed decoders.
+////
+//// ## Headers the module parses
+////
+//// Every response header Discord may send is parsed into structured
+//// fields on `RateLimitHeaders` — `limit`, `remaining`, `reset` (epoch
+//// seconds, float), `reset_after` (seconds from now, float), `bucket`,
+//// and `scope` (when present on 429s). Nothing is hardcoded against a
+//// snapshot of Discord's bucket table.
 
 import gleam/float
 import gleam/int
@@ -27,6 +43,8 @@ pub type RestClient {
   )
 }
 
+/// Build a REST client. The token is sent as `Authorization: Bot $token`
+/// on every request.
 pub fn new_client(
   token: String,
   timeout_ms: Int,
@@ -51,6 +69,7 @@ pub type RestRequest {
   )
 }
 
+/// Build a GET request. No body.
 pub fn get(path: String) -> RestRequest {
   RestRequest(
     method: GET,
@@ -61,6 +80,7 @@ pub fn get(path: String) -> RestRequest {
   )
 }
 
+/// Build a POST request with a JSON body.
 pub fn post(path: String, body: String) -> RestRequest {
   RestRequest(
     method: POST,
@@ -71,6 +91,7 @@ pub fn post(path: String, body: String) -> RestRequest {
   )
 }
 
+/// Build a PUT request with a JSON body.
 pub fn put(path: String, body: String) -> RestRequest {
   RestRequest(
     method: PUT,
@@ -81,6 +102,7 @@ pub fn put(path: String, body: String) -> RestRequest {
   )
 }
 
+/// Build a PATCH request with a JSON body.
 pub fn patch(path: String, body: String) -> RestRequest {
   RestRequest(
     method: PATCH,
@@ -91,6 +113,7 @@ pub fn patch(path: String, body: String) -> RestRequest {
   )
 }
 
+/// Build a DELETE request. No body.
 pub fn delete(path: String) -> RestRequest {
   RestRequest(
     method: DELETE,
@@ -101,6 +124,8 @@ pub fn delete(path: String) -> RestRequest {
   )
 }
 
+/// Add a header to the request. Headers are prepended; later `with_header`
+/// calls on the same request win if names collide.
 pub fn with_header(
   request: RestRequest,
   name: String,
@@ -109,6 +134,8 @@ pub fn with_header(
   RestRequest(..request, headers: [#(name, value), ..request.headers])
 }
 
+/// Set the X-Audit-Log-Reason header, which Discord logs in the audit
+/// log for administrative actions.
 pub fn with_audit_log_reason(
   request: RestRequest,
   reason: String,
@@ -116,6 +143,7 @@ pub fn with_audit_log_reason(
   RestRequest(..request, audit_log_reason: Some(reason))
 }
 
+/// The `Authorization: Bot $token` header pair.
 pub fn authorization_header(token: String) -> #(String, String) {
   #("Authorization", "Bot " <> token)
 }
@@ -225,30 +253,37 @@ fn header_seconds(
   }
 }
 
+/// True when the response is a 429 rate limit.
 pub fn is_rate_limited(response: RestResponse) -> Bool {
   response.status == 429
 }
 
+/// True when the status is 4xx.
 pub fn is_client_error(response: RestResponse) -> Bool {
   response.status >= 400 && response.status < 500
 }
 
+/// True when the status is 5xx.
 pub fn is_server_error(response: RestResponse) -> Bool {
   response.status >= 500 && response.status < 600
 }
 
+/// True when the status is 401.
 pub fn is_unauthorized(response: RestResponse) -> Bool {
   response.status == 401
 }
 
+/// True when the status is 403.
 pub fn is_forbidden(response: RestResponse) -> Bool {
   response.status == 403
 }
 
+/// True when the status is 404.
 pub fn is_not_found(response: RestResponse) -> Bool {
   response.status == 404
 }
 
+/// True when the status is 2xx.
 pub fn is_ok(response: RestResponse) -> Bool {
   response.status >= 200 && response.status < 300
 }

@@ -100,9 +100,9 @@
 ////     tadpole.new(token())  // from the environment, never source code
 ////     |> tadpole.with_intents(
 ////       intent.new()  // Message Content needs a Developer Portal toggle
-////       |> intent.enable(intent.guilds)
-////       |> intent.enable(intent.guild_messages)
-////       |> intent.enable(intent.message_content),
+////       |> intent.enable(intent.Guilds)
+////       |> intent.enable(intent.GuildMessages)
+////       |> intent.enable(intent.MessageContent),
 ////     )
 ////
 ////   case bot.run(cfg, handle_event) {

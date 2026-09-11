@@ -4,7 +4,15 @@
 //// message_type is Discord's raw integer; naming a sum type now would
 //// freeze it against Discord's growing list.
 ////
-//// Two records, two payloads:
+//// ## When you reach for this
+////
+//// Through [`tadpole/gateway/events`](../gateway/events.html) as
+//// `MessageCreate`'s payload and `MessageUpdate`'s partial; also from
+//// [`tadpole/rest/endpoints`](../rest/endpoints.html)'s send/reply
+//// responses. The `Message` record carries channel_id, author, content,
+//// and the fields a bot reads out of events.
+////
+//// ## Two records, two payloads:
 ////
 //// - `Message` — the full object MESSAGE_CREATE carries. Consumed by
 ////   [`tadpole/gateway/events`](../gateway/events.html)' MessageCreate

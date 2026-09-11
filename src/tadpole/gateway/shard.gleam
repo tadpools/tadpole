@@ -113,7 +113,7 @@
 ////       shard.ShardConfig(
 ////         token: token,
 ////         intents: intent.to_int(
-////           intent.new() |> intent.enable(intent.guild_messages),
+////           intent.new() |> intent.enable(intent.GuildMessages),
 ////         ),
 ////         shard: #(0, 1),
 ////         url: "wss://gateway.discord.gg/?v=10&encoding=json",

@@ -12,7 +12,7 @@ import tadpole/user_agent
 
 pub fn value_matches_discord_required_format_test() {
   user_agent.value()
-  |> should.equal("DiscordBot (https://github.com/tadpools/tadpole, 2026.2.0)")
+  |> should.equal("DiscordBot (https://github.com/tadpools/tadpole, 2026.3.0)")
 }
 
 pub fn header_pair_uses_lowercase_name_test() {
