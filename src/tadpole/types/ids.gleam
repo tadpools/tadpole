@@ -45,91 +45,120 @@
 
 import tadpole/types/snowflake.{type Snowflake}
 
+/// A rejected ID parse: the original string and why it failed.
 pub type InvalidId {
   InvalidId(value: String, reason: snowflake.InvalidSnowflakeReason)
 }
 
+/// An opaque user ID. Construct from a string with `user_id`.
 pub opaque type UserId {
   UserId(Snowflake)
 }
 
+/// An opaque guild (server) ID. Construct from a string with `guild_id`.
 pub opaque type GuildId {
   GuildId(Snowflake)
 }
 
+/// An opaque channel ID. Construct from a string with `channel_id`.
 pub opaque type ChannelId {
   ChannelId(Snowflake)
 }
 
+/// An opaque message ID. Construct from a string with `message_id`.
 pub opaque type MessageId {
   MessageId(Snowflake)
 }
 
+/// An opaque role ID. Construct from a string with `role_id`.
 pub opaque type RoleId {
   RoleId(Snowflake)
 }
 
+/// An opaque application (bot) ID. Construct from a string with `application_id`.
 pub opaque type ApplicationId {
   ApplicationId(Snowflake)
 }
 
+/// An opaque webhook ID. Construct from a string with `webhook_id`.
 pub opaque type WebhookId {
   WebhookId(Snowflake)
 }
 
+/// Parse a string as a UserId. Fails with `InvalidId` if the string is
+/// not a valid snowflake.
 pub fn user_id(value: String) -> Result(UserId, InvalidId) {
   snowflake(value) |> wrap(UserId)
 }
 
+/// Parse a string as a GuildId. Fails with `InvalidId` if the string is
+/// not a valid snowflake.
 pub fn guild_id(value: String) -> Result(GuildId, InvalidId) {
   snowflake(value) |> wrap(GuildId)
 }
 
+/// Parse a string as a ChannelId. Fails with `InvalidId` if the string
+/// is not a valid snowflake.
 pub fn channel_id(value: String) -> Result(ChannelId, InvalidId) {
   snowflake(value) |> wrap(ChannelId)
 }
 
+/// Parse a string as a MessageId. Fails with `InvalidId` if the string
+/// is not a valid snowflake.
 pub fn message_id(value: String) -> Result(MessageId, InvalidId) {
   snowflake(value) |> wrap(MessageId)
 }
 
+/// Parse a string as a RoleId. Fails with `InvalidId` if the string is
+/// not a valid snowflake.
 pub fn role_id(value: String) -> Result(RoleId, InvalidId) {
   snowflake(value) |> wrap(RoleId)
 }
 
+/// Parse a string as an ApplicationId. Fails with `InvalidId` if the
+/// string is not a valid snowflake.
 pub fn application_id(value: String) -> Result(ApplicationId, InvalidId) {
   snowflake(value) |> wrap(ApplicationId)
 }
 
+/// Parse a string as a WebhookId. Fails with `InvalidId` if the string
+/// is not a valid snowflake.
 pub fn webhook_id(value: String) -> Result(WebhookId, InvalidId) {
   snowflake(value) |> wrap(WebhookId)
 }
 
+/// Decimal string form of the user ID, ready for URL paths and API calls.
 pub fn user_to_string(id: UserId) -> String {
   let UserId(sf) = id
   snowflake.to_string(sf)
 }
 
+/// Integer form of the user ID, needed for bitfield operations and the
+/// occasional numeric API field.
 pub fn user_to_int(id: UserId) -> Int {
   let UserId(sf) = id
   snowflake.to_int(sf)
 }
 
+/// Decimal string form of the guild ID.
 pub fn guild_to_string(id: GuildId) -> String {
   let GuildId(sf) = id
   snowflake.to_string(sf)
 }
 
+/// Decimal string form of the channel ID.
 pub fn channel_to_string(id: ChannelId) -> String {
   let ChannelId(sf) = id
   snowflake.to_string(sf)
 }
 
+/// Decimal string form of the message ID.
 pub fn message_to_string(id: MessageId) -> String {
   let MessageId(sf) = id
   snowflake.to_string(sf)
 }
 
+/// Decimal string form of the role ID.
 pub fn role_to_string(id: RoleId) -> String {
   let RoleId(sf) = id
   snowflake.to_string(sf)
