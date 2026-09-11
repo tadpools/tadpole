@@ -3,6 +3,13 @@
 //// of parsing strings; error/render.gleam turns them into human-readable
 //// messages, with the token redacted everywhere it could surface.
 ////
+//// ## When you reach for this
+////
+//// Every `Result` from `bot.start`, `bot.run`, `send_message`, `reply`,
+//// and the REST helpers carries `TadpoleError`. The guide's control-flow
+//// section walks matching `RateLimited` for backoff; the variants below
+//// cover every failure mode the library exposes.
+////
 //// ## The taxonomy, grouped by subsystem
 ////
 //// Config (before anything connects — `tadpole.validate`,
@@ -123,34 +130,43 @@ pub type TadpoleError {
   )
 }
 
+/// The three intents that require a Developer Portal toggle.
 pub type IntentName {
   GuildMembersIntent
   GuildPresencesIntent
   MessageContentIntent
 }
 
+/// Discord's per-bucket rate-limit identity. Opaque; constructed from
+/// the `X-RateLimit-Bucket` response header.
 pub opaque type BucketId {
   BucketId(String)
 }
 
+/// Wrap a raw bucket string into the opaque type.
 pub fn bucket_id(value: String) -> BucketId {
   BucketId(value)
 }
 
+/// The raw bucket string, for logging or debugging.
 pub fn bucket_id_to_string(bucket: BucketId) -> String {
   let BucketId(value) = bucket
   value
 }
 
+/// Identifies the REST call that failed — method plus path, printed as
+/// `POST /channels/123/messages` by `route_to_string`.
 pub type Route {
   Route(method: HttpMethod, path: String)
 }
 
+/// Render a route as `METHOD /path`, e.g. `POST /channels/123/messages`.
 pub fn route_to_string(route: Route) -> String {
   let Route(method, path) = route
   method_to_string(method) <> " " <> path
 }
 
+/// The HTTP methods Discord's API uses.
 pub type HttpMethod {
   GET
   POST
@@ -161,6 +177,7 @@ pub type HttpMethod {
   OPTIONS
 }
 
+/// Render an HTTP method as its uppercase string form.
 pub fn method_to_string(method: HttpMethod) -> String {
   case method {
     GET -> "GET"
@@ -173,6 +190,8 @@ pub fn method_to_string(method: HttpMethod) -> String {
   }
 }
 
+/// Why a gateway connect attempt failed. The shard retries on its own
+/// for most reasons; `InvalidToken` and `SessionStartLimited` stop.
 pub type ConnectReason {
   InvalidToken
   BadRequest
@@ -187,6 +206,7 @@ pub type ConnectReason {
   Other(String)
 }
 
+/// Human-readable form of a connect reason, for logging.
 pub fn connect_reason_to_string(reason: ConnectReason) -> String {
   case reason {
     InvalidToken -> "invalid token"
