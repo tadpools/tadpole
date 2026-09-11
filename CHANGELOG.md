@@ -32,6 +32,17 @@ library did not do yet.
   the send-only opcodes 31 (Request Soundboard Sounds) and 43
   (Request Channel Info). Unknown opcodes remain data the shard
   ignores.
+- intent flags are a sum type now, not bare integer constants.
+  `enable`, `disable`, and `has` take a variant (`Guilds`,
+  `MessageContent`) instead of an `Int`; a typo'd intent is a
+  compile error, not a silent wrong-event-family bug. `intent_name`
+  is total on the variant. Wire conversion (`to_int`/`from_int`)
+  is unchanged. This is the milestone's second breaking change
+  (after the float reset field). (#28)
+- snowflake property fuzzing: the seeded harness generates random
+  valid timestamps, constructs snowflakes, and asserts roundtrip
+  fidelity plus monotonic ordering. ~20 deterministic cases, no
+  external property-testing dependency. (#29)
 
 ## 2026.2.0 - first-swim (published 2026-09-10)
 
