@@ -15,7 +15,7 @@ pub const repo_url = "https://github.com/tadpools/tadpole"
 
 /// The tadpole version reported in the User-Agent. Keep in step with
 /// gleam.toml at release time.
-pub const version = "2026.2.0"
+pub const version = "2026.3.0"
 
 /// The full User-Agent value in Discord's required
 /// `DiscordBot ($url, $versionNumber)` shape.

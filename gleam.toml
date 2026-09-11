@@ -1,5 +1,5 @@
 name = "tadpole"
-version = "2026.2.0"
+version = "2026.3.0"
 description = "A Discord library for Gleam, built on Erlang/OTP. Every frog starts as a tadpole."
 licences = ["Apache-2.0"]
 target = "erlang"
