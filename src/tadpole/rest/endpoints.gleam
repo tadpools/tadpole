@@ -30,6 +30,8 @@
 //// | `get_current_user` | GET /users/@me | `User` |
 //// | `send_message` | POST /channels/{channel_id}/messages | `Message` |
 //// | `reply` | POST /channels/{channel_id}/messages, body carries message_reference | `Message` |
+//// | `edit_message` | PATCH /channels/{channel_id}/messages/{message_id} | `Message` |
+//// | `delete_message` | DELETE /channels/{channel_id}/messages/{message_id} | `Nil` (204) |
 ////
 //// The `_with` variants take the same routes over an injected
 //// transport. See each function's doc.
@@ -138,7 +140,7 @@ pub fn send_message_with(
   }
 }
 
-/// POST /channels/{channel_id}/messages with a message_reference —
+/// POST /channels/{channel_id}/messages with a message_reference.
 /// Discord's reply. The replied-to message shows the reference in the
 /// client; the returned message's `message_type` is 19 (REPLY).
 pub fn reply(
@@ -182,6 +184,91 @@ pub fn reply_with(
     )
   case execute.send(client, request, transport) {
     Ok(response) -> message.from_json(response.body)
+    Error(e) -> Error(e)
+  }
+}
+
+/// PATCH /channels/{channel_id}/messages/{message_id} to edit a message
+/// the bot owns. Only the bot's own messages can be edited.
+///
+/// Fails with RestStatus on non-2xx. 403 means the bot does not own
+/// the message (only the author can edit). 404 means the message or
+/// channel id is wrong, or the message was deleted.
+pub fn edit_message(
+  client: rest.RestClient,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  new_content: String,
+) -> Result(Message, TadpoleError) {
+  edit_message_with(
+    client,
+    execute.httpc_transport(client.timeout_ms),
+    channel_id,
+    message_id,
+    new_content,
+  )
+}
+
+/// `edit_message` over an injected transport.
+pub fn edit_message_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  new_content: String,
+) -> Result(Message, TadpoleError) {
+  let body =
+    json.object([#("content", json.string(new_content))]) |> json.to_string
+  let request =
+    rest.patch(
+      "/channels/"
+        <> ids.channel_to_string(channel_id)
+        <> "/messages/"
+        <> ids.message_to_string(message_id),
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(response) -> message.from_json(response.body)
+    Error(e) -> Error(e)
+  }
+}
+
+/// DELETE /channels/{channel_id}/messages/{message_id}. Deletes a
+/// message. The bot can delete its own messages, or any message in a
+/// channel where it has Manage Messages.
+///
+/// Returns Nil on success (204 No Content). Fails with RestStatus on
+/// non-2xx. 403 means the bot lacks permission. 404 means the message
+/// or channel id is wrong, or the message was already deleted.
+pub fn delete_message(
+  client: rest.RestClient,
+  channel_id: ChannelId,
+  message_id: MessageId,
+) -> Result(Nil, TadpoleError) {
+  delete_message_with(
+    client,
+    execute.httpc_transport(client.timeout_ms),
+    channel_id,
+    message_id,
+  )
+}
+
+/// `delete_message` over an injected transport.
+pub fn delete_message_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  message_id: MessageId,
+) -> Result(Nil, TadpoleError) {
+  let request =
+    rest.delete(
+      "/channels/"
+      <> ids.channel_to_string(channel_id)
+      <> "/messages/"
+      <> ids.message_to_string(message_id),
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
     Error(e) -> Error(e)
   }
 }

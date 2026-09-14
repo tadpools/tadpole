@@ -112,6 +112,78 @@ pub fn reply_adds_message_reference_test() {
   )
 }
 
+// PATCH /channels/{id}/messages/{id}
+
+pub fn edit_message_sends_patch_test() {
+  reset_recorder()
+
+  let edited_payload =
+    "{\"id\":\""
+    <> message
+    <> "\",\"channel_id\":\""
+    <> channel
+    <> "\",\"author\":{\"id\":\"900000000000000125\",\"username\":\"lilypad_bot\"},\"content\":\"edited\",\"timestamp\":\"2026-09-07T18:00:00.000000+00:00\",\"edited_timestamp\":\"2026-09-07T18:01:00.000000+00:00\",\"type\":0}"
+
+  let assert Ok(edited) =
+    endpoints.edit_message_with(
+      client(),
+      transport(edited_payload),
+      channel_id(channel),
+      message_id(message),
+      "edited",
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.method |> should.equal(http.Patch)
+  sent.path
+  |> should.equal("/api/v10/channels/" <> channel <> "/messages/" <> message)
+  sent.body |> should.equal("{\"content\":\"edited\"}")
+  edited.content |> should.equal("edited")
+}
+
+// DELETE /channels/{id}/messages/{id}
+
+pub fn delete_message_sends_delete_test() {
+  reset_recorder()
+
+  // Discord returns 204 No Content for deletes; empty body.
+  let assert Ok(Nil) =
+    endpoints.delete_message_with(
+      client(),
+      fn(request) {
+        record_request(request)
+        Ok(response.Response(status: 204, headers: [], body: ""))
+      },
+      channel_id(channel),
+      message_id(message),
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.method |> should.equal(http.Delete)
+  sent.path
+  |> should.equal("/api/v10/channels/" <> channel <> "/messages/" <> message)
+  sent.body |> should.equal("")
+}
+
+pub fn delete_message_forbidden_passes_through_test() {
+  reset_recorder()
+  let body = "{\"message\": \"Missing Permissions\", \"code\": 50013}"
+
+  let assert Error(error.RestStatus(route, 403, _, _)) =
+    endpoints.delete_message_with(
+      client(),
+      fn(request) {
+        record_request(request)
+        Ok(response.Response(status: 403, headers: [], body: body))
+      },
+      channel_id(channel),
+      message_id(message),
+    )
+
+  error.route_to_string(route)
+  |> should.equal("DELETE /channels/" <> channel <> "/messages/" <> message)
+}
+
 // errors pass through untouched
 
 pub fn unauthorized_maps_to_rest_status_test() {

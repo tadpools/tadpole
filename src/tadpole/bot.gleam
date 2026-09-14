@@ -2,7 +2,8 @@
 //// `start` validates the config, opens the gateway, and hands back a Bot
 //// whose events arrive at your handler one at a time, in arrival order.
 //// The same Bot answers: `send_message` and `reply` post messages over
-//// the bot's REST client, and `stop` closes the gateway. Multi-shard
+//// the bot's REST client, `edit_message` and `delete_message` modify or
+//// remove them, and `stop` closes the gateway. Multi-shard
 //// fleets, handler supervision, and a stop that ends the program are
 //// later work. A handler crash takes the whole bot down, which beats a
 //// silently dead bot.
@@ -276,6 +277,40 @@ pub fn reply(
   content: String,
 ) -> Result(Message, TadpoleError) {
   endpoints.reply_with(bot.rest, bot.transport, channel_id, message_id, content)
+}
+
+/// Edit a message the bot owns. Only works on the bot's own messages.
+///
+/// Fails with `RestStatus` on non-2xx (403 means the bot does not own
+/// the message, 404 means the message was deleted or the id is wrong)
+/// or with `RateLimited` once 429 retries run out.
+pub fn edit_message(
+  bot: Bot,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  new_content: String,
+) -> Result(Message, TadpoleError) {
+  endpoints.edit_message_with(
+    bot.rest,
+    bot.transport,
+    channel_id,
+    message_id,
+    new_content,
+  )
+}
+
+/// Delete a message. The bot can delete its own messages, or any
+/// message in a channel where it has Manage Messages.
+///
+/// Returns Nil on success. Fails with `RestStatus` on non-2xx (403
+/// means the bot lacks permission, 404 means the message was already
+/// gone) or with `RateLimited` once 429 retries run out.
+pub fn delete_message(
+  bot: Bot,
+  channel_id: ChannelId,
+  message_id: MessageId,
+) -> Result(Nil, TadpoleError) {
+  endpoints.delete_message_with(bot.rest, bot.transport, channel_id, message_id)
 }
 
 /// Close the gateway: sends the shard actor its Stop message.
