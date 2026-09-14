@@ -87,7 +87,8 @@
 //// slice is Growing or Experimental.
 ////
 //// Published to hex as 2026.2.0. The current milestone (2026.3.0)
-//// hardens the intent API and docs before the next publish.
+//// hardens frame parsing, aligns rate-limit and gateway docs with
+//// the wire, and makes intent flags a compile-checked sum type.
 
 import gleam/int
 import gleam/string
