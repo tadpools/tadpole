@@ -28,6 +28,8 @@
 //// | Function | Discord route | Returns |
 //// | --- | --- | --- |
 //// | `get_current_user` | GET /users/@me | `User` |
+//// | `get_channel` | GET /channels/{channel_id} | `Channel` |
+//// | `get_message` | GET /channels/{channel_id}/messages/{message_id} | `Message` |
 //// | `send_message` | POST /channels/{channel_id}/messages | `Message` |
 //// | `reply` | POST /channels/{channel_id}/messages, body carries message_reference | `Message` |
 //// | `edit_message` | PATCH /channels/{channel_id}/messages/{message_id} | `Message` |
@@ -72,6 +74,7 @@
 
 import gleam/json
 import tadpole/error.{type TadpoleError}
+import tadpole/model/channel.{type Channel}
 import tadpole/model/message.{type Message}
 import tadpole/model/user.{type User}
 import tadpole/rest
@@ -95,6 +98,83 @@ pub fn get_current_user_with(
 ) -> Result(User, TadpoleError) {
   case execute.send(client, rest.get("/users/@me"), transport) {
     Ok(response) -> user.from_json(response.body)
+    Error(e) -> Error(e)
+  }
+}
+
+/// GET /channels/{channel_id}, fetch a channel by its id.
+///
+/// Fails with RestStatus on non-2xx. 403 means the bot cannot view
+/// the channel. 404 means the channel id is wrong or the channel was
+/// deleted.
+pub fn get_channel(
+  client: rest.RestClient,
+  channel_id: ChannelId,
+) -> Result(Channel, TadpoleError) {
+  get_channel_with(
+    client,
+    execute.httpc_transport(client.timeout_ms),
+    channel_id,
+  )
+}
+
+/// `get_channel` over an injected transport.
+pub fn get_channel_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+) -> Result(Channel, TadpoleError) {
+  case
+    execute.send(
+      client,
+      rest.get("/channels/" <> ids.channel_to_string(channel_id)),
+      transport,
+    )
+  {
+    Ok(response) -> channel.from_json(response.body)
+    Error(e) -> Error(e)
+  }
+}
+
+/// GET /channels/{channel_id}/messages/{message_id}, fetch a single
+/// message by its id.
+///
+/// Fails with RestStatus on non-2xx. 403 means the bot lacks Read
+/// Message History. 404 means the message or channel id is wrong, or
+/// the message was deleted.
+pub fn get_message(
+  client: rest.RestClient,
+  channel_id: ChannelId,
+  message_id: MessageId,
+) -> Result(Message, TadpoleError) {
+  get_message_with(
+    client,
+    execute.httpc_transport(client.timeout_ms),
+    channel_id,
+    message_id,
+  )
+}
+
+/// `get_message` over an injected transport.
+pub fn get_message_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  message_id: MessageId,
+) -> Result(Message, TadpoleError) {
+  case
+    execute.send(
+      client,
+      rest.get(
+        "/channels/"
+        <> ids.channel_to_string(channel_id)
+        <> "/messages/"
+        <> ids.message_to_string(message_id),
+      ),
+      transport,
+    )
+  {
+    Ok(response) -> message.from_json(response.body)
     Error(e) -> Error(e)
   }
 }
