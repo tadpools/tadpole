@@ -46,6 +46,8 @@ const message_payload = "{\"id\":\"124400000000000009\",\"channel_id\":\"7423000
 
 const user_payload = "{\"id\":\"900000000000000123\",\"username\":\"lilypad_bot\",\"global_name\":\"Lilypad\",\"avatar\":null,\"bot\":true}"
 
+const channel_payload = "{\"id\":\"742300000000000001\",\"type\":0,\"name\":\"general\",\"guild_id\":\"742300000000000002\",\"topic\":\"General chat\"}"
+
 // GET /users/@me
 
 pub fn get_current_user_sends_get_users_at_me_test() {
@@ -62,6 +64,44 @@ pub fn get_current_user_sends_get_users_at_me_test() {
   bot.username |> should.equal("lilypad_bot")
   bot.global_name |> should.equal(Some("Lilypad"))
   bot.bot |> should.equal(True)
+}
+
+// GET /channels/{id}
+
+pub fn get_channel_sends_get_channels_id_test() {
+  reset_recorder()
+
+  let assert Ok(ch) =
+    endpoints.get_channel_with(
+      client(),
+      transport(channel_payload),
+      channel_id(channel),
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.method |> should.equal(http.Get)
+  sent.path |> should.equal("/api/v10/channels/" <> channel)
+  ch.name |> should.equal(Some("general"))
+}
+
+// GET /channels/{id}/messages/{id}
+
+pub fn get_message_sends_get_test() {
+  reset_recorder()
+
+  let assert Ok(msg) =
+    endpoints.get_message_with(
+      client(),
+      transport(message_payload),
+      channel_id(channel),
+      message_id(message),
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.method |> should.equal(http.Get)
+  sent.path
+  |> should.equal("/api/v10/channels/" <> channel <> "/messages/" <> message)
+  msg.content |> should.equal("quack")
 }
 
 // POST /channels/{id}/messages
