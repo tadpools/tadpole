@@ -11,12 +11,12 @@
 ////
 //// ## Two records for two payloads:
 ////
-//// - `Guild` — what GUILD_CREATE carries (see
+//// - `Guild`: what GUILD_CREATE carries (see
 ////   [`tadpole/gateway/events`](../gateway/events.html)). `member_count`
-////   is `Option` because payloads that omit the count — READY's stub
-////   entries, for one — still decode; `name` defaults to "" when
+////   is `Option` because payloads that omit the count (READY's stub
+////   entries, for one) still decode. `name` defaults to "" when
 ////   Discord omits it rather than failing the whole event.
-//// - `UnavailableGuild` — one entry of READY's `guilds` array or the
+//// - `UnavailableGuild`: one entry of READY's `guilds` array or the
 ////   object GUILD_DELETE carries: a guild the bot has no live view of
 ////   yet (a technical outage, in Discord's vocabulary). Only the id is
 ////   guaranteed. The `unavailable` flag itself is not modeled —
@@ -56,7 +56,7 @@ pub fn decoder() -> d.Decoder(Guild) {
 }
 
 /// Decoder for one entry in READY's `guilds` array. `unavailable` may be
-/// absent, so it is not modeled as a field — everything READY lists here
+/// absent, so it is not modeled as a field. Everything READY lists here
 /// starts unavailable until GUILD_CREATE lands.
 pub fn unavailable_decoder() -> d.Decoder(UnavailableGuild) {
   use id <- d.field("id", decode.snowflake_id(ids.guild_id))

@@ -1,25 +1,27 @@
-//// The first REST endpoint bindings: things every bot does in its first
-//// hour — read itself, post a message, reply. Each function builds the
-//// request, runs it through tadpole/rest/execute, and decodes the typed
-//// model. Transport injection is inherited from execute; the plain
-//// functions use the real httpc transport, the `_with` variants accept
-//// any transport (tests, proxies, a future JS target).
+//// The first REST endpoint bindings: things every bot does in its
+//// first hour. Read itself, post a message, reply. Each function
+//// builds the request, runs it through tadpole/rest/execute, and
+//// decodes the typed model. Transport injection is inherited from
+//// execute; the plain functions use the real httpc transport, the
+//// `_with` variants accept any transport (tests, proxies, a future JS
+//// target).
 ////
 //// Every call runs in a fresh execute session, so rate-limit state
-//// learned here does not carry between calls: single-call bots are fine,
-//// sustained-fire callers should use `execute.send_in_session` directly.
+//// learned here does not carry between calls. Single-call bots are
+//// fine. Sustained-fire callers should use `execute.send_in_session`
+//// directly.
 ////
 //// ## When you reach for this
 ////
-//// - `get_current_user` — smoke-test a token before starting a bot, or
+//// - `get_current_user`: smoke-test a token before starting a bot, or
 ////   fetch the bot's own identity.
-//// - `send_message` / `reply` — every text post. `reply` adds a
+//// - `send_message` / `reply`: every text post. `reply` adds a
 ////   message_reference, so Discord's client shows the original above
-////   the reply and pings its author; the returned message's
+////   the reply and pings its author. The returned message's
 ////   `message_type` is 19 (REPLY).
 ////
-//// Any other route: drop to [`tadpole/rest/execute`](execute.html) with
-//// `rest.post`/`rest.get` and decode the payload yourself.
+//// Any other route: drop to [`tadpole/rest/execute`](execute.html)
+//// with `rest.post`/`rest.get` and decode the payload yourself.
 ////
 //// ## Routes
 ////
@@ -30,25 +32,25 @@
 //// | `reply` | POST /channels/{channel_id}/messages, body carries message_reference | `Message` |
 ////
 //// The `_with` variants take the same routes over an injected
-//// transport; see each function's doc.
+//// transport. See each function's doc.
 ////
 //// ## Failure modes
 ////
 //// Errors arrive already mapped by execute:
 ////
-//// - 401 — the token is wrong or was reset in the portal.
-//// - 403 — the bot lacks permission there (for messages: usually Send
+//// - 401: the token is wrong or was reset in the portal.
+//// - 403: the bot lacks permission there (for messages: usually Send
 ////   Messages), or cannot view the channel.
-//// - 404 — the id is wrong, or the resource is gone (for `reply`, the
+//// - 404: the id is wrong, or the resource is gone (for `reply`, the
 ////   replied-to message was already deleted).
-//// - 429 — rate limited; retried while the client allows, then
+//// - 429: rate limited. Retried while the client allows, then
 ////   `error.RateLimited` with the wait.
-//// - status 0 — no HTTP response happened at all: network down,
+//// - status 0: no HTTP response happened at all. Network down,
 ////   timeout. The status-0 convention, tadpole/rest/execute's module
 ////   doc explains why.
-//// - `DecodeFailed` — Discord's payload stopped matching the model.
+//// - `DecodeFailed`: Discord's payload stopped matching the model.
 ////
-//// Discord truncates content past 2000 characters, silently: the
+//// Discord truncates content past 2000 characters, silently. The
 //// message posts, the tail is gone, no error returns. Check
 //// `string.length` yourself if the length matters.
 ////
@@ -56,14 +58,15 @@
 ////
 //// Each call is independent and blocks its process for the round trip
 //// plus any sleeps. The fresh-session caveat above is the one that
-//// bites: a tight loop leans on 429 retries rather than learned waits.
-//// Sustained fire on one route belongs in `execute.send_in_session`.
+//// bites: a tight loop leans on 429 retries rather than learned
+//// waits. Sustained fire on one route belongs in
+//// `execute.send_in_session`.
 ////
 //// ## See also
 ////
-//// - [`tadpole/bot`](../bot.html) — wraps send_message/reply with a ready client
-//// - [`tadpole/rest/execute`](execute.html) — the layer below, and the session API
-//// - [`tadpole/model/message`](../model/message.html) — what comes back
+//// - [`tadpole/bot`](../bot.html) wraps send_message/reply with a ready client
+//// - [`tadpole/rest/execute`](execute.html) the layer below, and the session API
+//// - [`tadpole/model/message`](../model/message.html) what comes back
 
 import gleam/json
 import tadpole/error.{type TadpoleError}
@@ -73,7 +76,7 @@ import tadpole/rest
 import tadpole/rest/execute.{type Transport}
 import tadpole/types/ids.{type ChannelId, type MessageId}
 
-/// GET /users/@me — the bot's own user object.
+/// GET /users/@me, the bot's own user object.
 ///
 /// Fails with RestStatus when Discord answers non-2xx (401 means the
 /// token is wrong or was reset), with the status-0 RestStatus convention
@@ -94,11 +97,11 @@ pub fn get_current_user_with(
   }
 }
 
-/// POST /channels/{channel_id}/messages — post `content` to a channel.
+/// POST /channels/{channel_id}/messages, post `content` to a channel.
 ///
 /// Discord silently truncates content past 2000 characters: the message
 /// still goes through, the tail is gone, no error is returned. Tadpole
-/// does not second-guess that — check `string.length` yourself if it
+/// does not second-guess that. Check `string.length` yourself if it
 /// matters.
 ///
 /// Concurrency note: each call carries its own rate-limit session, so

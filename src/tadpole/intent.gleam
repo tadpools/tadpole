@@ -26,13 +26,13 @@
 //// ends the connection with close code 4014 the moment the bot
 //// identifies:
 ////
-//// - `intent.GuildMembers` — Server Members
-//// - `intent.GuildPresences` — Presence
-//// - `intent.MessageContent` — Message Content; without it, other
+//// - `intent.GuildMembers`: Server Members
+//// - `intent.GuildPresences`: Presence
+//// - `intent.MessageContent`: Message Content. Without it, other
 ////   users' messages arrive with empty `content`
 ////
 //// `check_privileged` lists which privileged variants a config
-//// requests; tadpole refuses nothing — Discord does the enforcing,
+//// requests; tadpole refuses nothing. Discord does the enforcing,
 //// after connect.
 ////
 //// ## The wire
@@ -43,15 +43,15 @@
 //// and rendered errors; `to_string` names them all, or "(none)".
 ////
 //// Every function here is total bit arithmetic, so nothing fails at
-//// runtime. The one failure is configurational — a privileged variant
-//// without its portal toggle — and it surfaces as close 4014 after
+//// runtime. The one failure is configurational: a privileged variant
+//// without its portal toggle. It surfaces as close 4014 after
 //// connect, not as an error from this module.
 ////
 //// ## See also
 ////
-//// - [`tadpole`](../tadpole.html) — where intents land in the config
-//// - [`tadpole/guide`](guide.html) — the portal-toggle walkthrough
-//// - [`tadpole/error`](error.html) — `IntentsNotPrivileged`, the one related variant
+//// - [`tadpole`](../tadpole.html) where intents land in the config
+//// - [`tadpole/guide`](guide.html) the portal-toggle walkthrough
+//// - [`tadpole/error`](error.html) `IntentsNotPrivileged`, the one related variant
 
 import gleam/int
 import gleam/list

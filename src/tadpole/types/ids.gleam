@@ -4,16 +4,16 @@
 ////
 //// ## When you reach for this
 ////
-//// Events hand you typed IDs already — `message.channel_id` is a
-//// ChannelId, ready for `bot.send_message` — so most code never calls a
-//// constructor. You construct when an id arrives as text: config, a
-//// command argument, a URL. The constructor validates it as a snowflake
-//// before it can go anywhere near Discord.
+//// Events hand you typed IDs already. `message.channel_id` is a
+//// ChannelId, ready for `bot.send_message`, so most code never calls
+//// a constructor. You construct when an id arrives as text: config, a
+//// command argument, a URL. The constructor validates it as a
+//// snowflake before it can go anywhere near Discord.
 ////
 //// ## The types
 ////
 //// UserId, GuildId, ChannelId, MessageId, RoleId, ApplicationId,
-//// WebhookId — one per Discord object kind this slice touches, all
+//// WebhookId. One per Discord object kind this slice touches, all
 //// opaque, all built the same way:
 ////
 //// ```gleam
@@ -25,23 +25,23 @@
 //// ```
 ////
 //// Reading back: `user_to_string`, `user_to_int`, `guild_to_string`,
-//// `channel_to_string`, `message_to_string`, `role_to_string` — the
+//// `channel_to_string`, `message_to_string`, `role_to_string`. The
 //// explicit accessors this slice needs. Missing accessors get added
 //// when a milestone dereferences the ID, with a reason in their doc.
 ////
 //// ## Failure modes
 ////
 //// Constructors fail with `InvalidId(value, reason)` when the string is
-//// not a number, is negative, or embeds a timestamp past ~2090 — see
-//// [`tadpole/types/snowflake`](snowflake.html) for the rules. Decoding
-//// Discord payloads validates through the same constructors, so a
-//// payload with a garbage id fails as `DecodeFailed`, not with a broken
-//// ID in hand. Conversions cannot fail.
+//// not a number, is negative, or embeds a timestamp past ~2090. See
+//// [`tadpole/types/snowflake`](snowflake.html) for the rules.
+//// Decoding Discord payloads validates through the same constructors,
+//// so a payload with a garbage id fails as `DecodeFailed`, not with a
+//// broken ID in hand. Conversions cannot fail.
 ////
 //// ## See also
 ////
-//// - [`tadpole/types/snowflake`](snowflake.html) — the value underneath
-//// - [`tadpole/model/message`](../model/message.html) — typed IDs straight out of payloads
+//// - [`tadpole/types/snowflake`](snowflake.html) the value underneath
+//// - [`tadpole/model/message`](../model/message.html) typed IDs straight out of payloads
 
 import tadpole/types/snowflake.{type Snowflake}
 

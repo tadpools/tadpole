@@ -1,10 +1,10 @@
 //// Error rendering: typed errors in, human-readable messages out.
-//// Severity decides how much personality the message gets — auth failures
+//// Severity decides how much personality the message gets. Auth failures
 //// get none, ordinary hiccups get one friendly line.
 ////
 //// ## When you reach for this
 ////
-//// Through [`tadpole/guide`](../guide.html) — the guide's bot runner
+//// Through [`tadpole/guide`](../guide.html) the guide's bot runner
 //// calls `render_error` to log `TadpoleError` values. Directly when you
 //// need a severity for programmatic dispatch (`severity_of`).
 ////
@@ -29,8 +29,8 @@
 ////
 //// ## See also
 ////
-//// - [`tadpole/error`](../error.html) — the variants being rendered
-//// - [`tadpole/guide`](../guide.html) — render_error in a running bot
+//// - [`tadpole/error`](../error.html) the variants being rendered
+//// - [`tadpole/guide`](../guide.html) render_error in a running bot
 
 import gleam/int
 import gleam/option.{None, Some}

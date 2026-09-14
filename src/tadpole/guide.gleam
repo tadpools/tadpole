@@ -1,7 +1,7 @@
 //// The walkthrough. Read it top to bottom: empty directory to a bot
 //// that echoes messages, then the vocabulary to bend it into whatever
 //// you actually wanted. Every claim here was checked against the
-//// source of this version; where a feature does not exist the guide
+//// source of this version. Where a feature does not exist the guide
 //// says so instead of letting you find out at runtime. The full
 //// example program lives in the repository at dev/echo_bot.gleam.
 ////
@@ -155,7 +155,7 @@
 //// - the privileged-intents warning, because the config turns on
 ////   Message Content (next section);
 //// - `logged in as <your bot's username>` once READY arrives;
-//// - occasional lifecycle lines from Erlang's logger — connects and
+//// - occasional lifecycle lines from Erlang's logger. Connects and
 ////   disconnects go through `logging`, not `io.println`, so whether
 ////   you see them depends on your logger's level.
 ////
@@ -179,11 +179,11 @@
 //// it, `message.content` arrives empty for messages authored by other
 //// users, and there is nothing to echo.
 ////
-//// The toggle lives at Developer Portal → Bot → Privileged Gateway
+//// The toggle lives at Developer Portal -> Bot -> Privileged Gateway
 //// Intents. Enable, Save Changes, restart the bot. tadpole cannot
 //// check the portal for you: `tadpole.validate` reports the
-//// privileged bits a config requests — that is what
-//// `tadpole.privileged_intents_requested` returns — and refuses
+//// privileged bits a config requests (that is what
+//// `tadpole.privileged_intents_requested` returns) and refuses
 //// nothing, because Discord does the enforcing.
 ////
 //// Enforcement looks like this: the bot identifies, Discord closes
@@ -313,7 +313,7 @@
 //// above the reply and pings its author. Both return the posted
 //// `Message` on success.
 ////
-//// Channel IDs come typed out of events — `message.channel_id` is
+//// Channel IDs come typed out of events. `message.channel_id` is
 //// already a `ChannelId`. An ID you hold as a string goes through the
 //// constructor, which validates it as a snowflake (add
 //// `import tadpole/types/ids`):
@@ -327,7 +327,7 @@
 ////
 //// Failure modes, straight from the function docs: a 403 usually
 //// means the bot lacks Send Messages in that channel; a 404 means the
-//// channel ID is wrong — or, for `reply`, that the replied-to message
+//// channel ID is wrong, or, for `reply`, the replied-to message
 //// was already deleted.
 ////
 //// Discord truncates content past 2000 characters, silently. The
@@ -338,7 +338,7 @@
 //// Rate limits: waits are learned from response headers and 429
 //// bodies, and 429s are retried while retries remain (`retry_on_429`
 //// and `max_retries` in the config). Each call through the bot
-//// helpers runs in its own rate-limit session — fine for a few
+//// helpers runs in its own rate-limit session. Fine for a few
 //// messages, but a tight loop leans on retries instead of learned
 //// waits; sustained fire belongs in
 //// [`tadpole/rest/execute`](rest/execute.html)'s
@@ -348,8 +348,8 @@
 ////
 //// Errors are values. Nothing in tadpole's public API panics; every
 //// fallible call returns `Result` with a `TadpoleError`, and the
-//// variants carry structure — route, status, retry-after, decode
-//// path — so you can match on them, not just print them.
+//// variants carry structure (route, status, retry-after, decode path)
+//// so you can match on them, not just print them.
 ////
 //// [`tadpole/error/render`](error/render.html) turns any of
 //// them into text a human can act on:
@@ -397,13 +397,13 @@
 //// embeds, voice, a cache, graceful shutdown), and the stability
 //// tiers. The short version of where to read next:
 ////
-//// - [`tadpole/bot`](bot.html) — the runner's failure modes and
+//// - [`tadpole/bot`](bot.html) the runner's failure modes and
 ////   concurrency guarantees
-//// - [`tadpole/rest/endpoints`](rest/endpoints.html) — REST beyond
+//// - [`tadpole/rest/endpoints`](rest/endpoints.html) REST beyond
 ////   send and reply
-//// - [`tadpole/intent`](intent.html) — every intent bit and the
+//// - [`tadpole/intent`](intent.html) every intent bit and the
 ////   privileged trio
-//// - [`tadpole/error`](error.html) — the full failure taxonomy
+//// - [`tadpole/error`](error.html) the full failure taxonomy
 ////
 //// Modules below the beginner tier are marked "internals" in the
 //// directory; they are usable, and their APIs move more freely
@@ -411,8 +411,8 @@
 ////
 //// ## See also
 ////
-//// - [`tadpole`](../tadpole.html) — the config builder the walkthrough uses
-//// - [`tadpole/bot`](bot.html) — the runner the walkthrough builds on
+//// - [`tadpole`](../tadpole.html) the config builder the walkthrough uses
+//// - [`tadpole/bot`](bot.html) the runner the walkthrough builds on
 
 /// The guide is a documentation-only module, and HexDocs wants at
 /// least one public item per page, so this is it. It returns Nil and

@@ -13,7 +13,7 @@
 //// ## Headers the module parses
 ////
 //// Every response header Discord may send is parsed into structured
-//// fields on `RateLimitHeaders` — `limit`, `remaining`, `reset` (epoch
+//// fields on `RateLimitHeaders`. `limit`, `remaining`, `reset` (epoch
 //// seconds, float), `reset_after` (seconds from now, float), `bucket`,
 //// and `scope` (when present on 429s). Nothing is hardcoded against a
 //// snapshot of Discord's bucket table.

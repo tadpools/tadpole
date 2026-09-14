@@ -1,24 +1,25 @@
-//// Gateway frame parsing and payload building. The envelope is {op, d, s, t}.
-//// `d` stays raw: per-event decoders consume it later, so new event
-//// payloads can never break the envelope parser.
+//// Gateway frame parsing and payload building. The envelope is
+//// {op, d, s, t}. `d` stays raw: per-event decoders consume it
+//// later, so new event payloads can never break the envelope parser.
 //// Optional fields use sentinel defaults (s = -1, t = "").
 ////
 //// ## When you reach for this
 ////
-//// Through [`tadpole/gateway/shard`](shard.html) — the shard actor calls
-//// `parse` on every incoming payload, reads HELLO and InvalidSession
-//// through the helpers, and builds IDENTIFY/RESUME/HEARTBEAT with the
-//// payload helpers. Directly when you need `parse_gateway_bot` for the
-//// initial websocket URL.
+//// Through [`tadpole/gateway/shard`](shard.html) the shard actor
+//// calls `parse` on every incoming payload, reads HELLO and
+//// InvalidSession through the helpers, and builds
+//// IDENTIFY/RESUME/HEARTBEAT with the payload helpers. Directly when
+//// you need `parse_gateway_bot` for the initial websocket URL.
 ////
 //// ## Internals
 ////
 //// [`tadpole/gateway/transport`](transport.html) calls `parse` on
-//// everything the gateway sends. `FrameError` covers the only two ways
-//// an envelope can fail: not JSON at all (`FrameNotJson`), or valid JSON
-//// carrying no integer `op` (`FrameMissingOpcode`). Everything after `op`
-//// is someone else's decoder problem, so hostile payloads degrade to one
-//// of those two values and never crash the connection. See also
+//// everything the gateway sends. `FrameError` covers the only two
+//// ways an envelope can fail: not JSON at all (`FrameNotJson`), or
+//// valid JSON carrying no integer `op` (`FrameMissingOpcode`).
+//// Everything after `op` is someone else's decoder problem, so
+//// hostile payloads degrade to one of those two values and never
+//// crash the connection. See also
 //// [`tadpole/gateway/opcode`](opcode.html) for the `op` values.
 
 import gleam/dynamic/decode as d
@@ -47,7 +48,7 @@ pub type Frame {
 /// Parse one gateway frame. Hostile input degrades to a Result, never a
 /// crash: valid JSON without an integer op is FrameMissingOpcode, anything
 /// that is not a decodable envelope is FrameNotJson. Unknown op values
-/// still parse — they land in opcode.UnknownOpcode and the shard ignores
+/// still parse. They land in opcode.UnknownOpcode and the shard ignores
 /// them, so a new Discord opcode is data, never a disconnect.
 pub fn parse(payload: String) -> Result(Frame, FrameError) {
   let decoder = {

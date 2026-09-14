@@ -1,12 +1,12 @@
-//// Gateway opcodes, with a safe slot for opcodes Discord adds later:
-//// `from_int` never fails, unknown values land in `UnknownOpcode(value)`
-//// and are ignored by the shard. Pure data; see
+//// Gateway opcodes, with a safe slot for opcodes Discord adds later.
+//// `from_int` never fails; unknown values land in `UnknownOpcode(value)`
+//// and are ignored by the shard. Pure data. See
 //// [`tadpole/gateway/frame`](frame.html) for the envelopes that carry
 //// these.
 ////
 //// ## When you reach for this
 ////
-//// Through [`tadpole/gateway/frame`](frame.html) — the frame parser
+//// Through [`tadpole/gateway/frame`](frame.html) the frame parser
 //// returns `Opcode` values; the shard actor matches on them. Directly
 //// when you need an opcode's wire integer (`to_int`) or Discord name
 //// (`name`) for logging.

@@ -14,14 +14,14 @@
 ////
 //// ## Two records, two payloads:
 ////
-//// - `Message` — the full object MESSAGE_CREATE carries. Consumed by
+//// - `Message`: the full object MESSAGE_CREATE carries. Consumed by
 ////   [`tadpole/gateway/events`](../gateway/events.html)' MessageCreate
 ////   and by [`tadpole/rest/endpoints`](../rest/endpoints.html)'s
 ////   send/reply responses.
-//// - `MessageUpdate` — the PARTIAL object MESSAGE_UPDATE carries. Only
+//// - `MessageUpdate`: the PARTIAL object MESSAGE_UPDATE carries. Only
 ////   the ids are guaranteed; every other field may be absent, and
 ////   absent reads as `None` rather than falling back to a cached
-////   message — merging old and new state is the caller's job.
+////   message. Merging old and new state is the caller's job.
 ////
 //// ## Why fields are Option
 ////
@@ -30,7 +30,7 @@
 //// first edit, `webhook_id` for non-webhook authors. Defaults differ by
 //// field: `content` arrives as `""` for embed-only posts, `tts` /
 //// `mention_everyone` / `pinned` default to False, `message_type` to 0
-//// — those are documented Discord semantics, not guesses. Unknown
+//// Those are documented Discord semantics, not guesses. Unknown
 //// fields are ignored.
 ////
 //// ## Why some fields are String, not IDs
@@ -38,8 +38,8 @@
 //// `Attachment.id` is a plain String: attachments are rare in this
 //// milestone and snowflake validation would only add a failure mode
 //// without buying type safety anyone uses yet. Every field the library
-//// itself dereferences — `id`, `channel_id`, `guild_id`, `webhook_id`,
-//// mention role ids — is a typed ID that fails the decode if it is not
+//// itself dereferences (`id`, `channel_id`, `guild_id`, `webhook_id`,
+//// mention role ids) is a typed ID that fails the decode if it is not
 //// a snowflake.
 
 import gleam/dynamic/decode as d

@@ -1,22 +1,22 @@
 //// Identify pacing across a shard fleet. Discord allows roughly one
-//// IDENTIFY per 5 seconds per guild bucket and reports the real budget
-//// as `max_concurrency` on GET /gateway/bot. Fetching that value is a
-//// later milestone; until then the pacing lives here as documentation
-//// and a conservative default. A fleet that ignores it meets close code
-//// 4005 (already authenticated) or session-start-limit 429s.
+//// IDENTIFY per 5 seconds per guild bucket and reports the real
+//// budget as `max_concurrency` on GET /gateway/bot. Fetching that
+//// value is a later milestone; until then the pacing lives here as
+//// documentation and a conservative default. A fleet that ignores it
+//// meets close code 4005 (already authenticated) or session-start-
+//// limit 429s.
 ////
 //// ## When you reach for this
 ////
-//// When you build a multi-shard fleet — call `identify_delay_ms` to get
-//// the wait between consecutive IDENTIFYs. Not wired into anything yet;
-//// [`tadpole/bot`](../bot.html) runs one shard, which never needs
-//// pacing.
+//// When you build a multi-shard fleet. Call `identify_delay_ms` to
+//// get the wait between consecutive IDENTIFYs. Not wired into
+//// anything yet; [`tadpole/bot`](../bot.html) runs one shard, which
+//// never needs pacing.
 ////
 //// Stability: Experimental.
 ////
-//// Not wired into anything yet — [`tadpole/bot`](../bot.html) runs one
-//// shard, which never needs pacing. The one function is pure math for
-//// the fleet code to come; see also [`tadpole/gateway`](../gateway.html).
+//// The one function is pure math for the fleet code to come. See also
+//// [`tadpole/gateway`](../gateway.html).
 
 const identify_interval_ms = 5000
 

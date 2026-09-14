@@ -8,7 +8,7 @@
 //// `message.author`, `Ready`'s user, and mention entries; a bare user
 //// also comes from `endpoints.get_current_user`. `global_name` is `None`
 //// until the user sets a display name, and `avatar` is Discord's avatar
-//// hash — not a URL — with `None` meaning the default avatar. `bot` and
+//// hash (not a URL) with `None` meaning the default avatar. `bot` and
 //// `system` default to False: Discord omits both for ordinary users.
 
 import gleam/dynamic/decode as d

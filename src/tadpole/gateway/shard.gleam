@@ -1,100 +1,101 @@
 //// One gateway connection, end to end: HELLO, heartbeats, identify or
-//// resume, close-code decisions, reconnect with backoff. The shard actor
-//// owns all protocol state — sequence, session id, heartbeat misses — so
-//// a transport can die without losing the session it will resume with.
-//// Decisions that do not need a socket are pure functions here, mirrored
-//// against the tables in tadpole/gateway.
+//// resume, close-code decisions, reconnect with backoff. The shard
+//// actor owns all protocol state (sequence, session id, heartbeat
+//// misses) so a transport can die without losing the session it will
+//// resume with. Decisions that do not need a socket are pure functions
+//// here, mirrored against the tables in tadpole/gateway.
 //// Stability: Growing.
 ////
-//// Almost every bot meets this module through [`tadpole/bot`](../bot.html).
-//// Come here directly to run a shard with your own event sink — a custom
-//// dispatcher, a test harness, a second consumer of lifecycle data.
+//// Almost every bot meets this module through
+//// [`tadpole/bot`](../bot.html). Come here directly to run a shard
+//// with your own event sink: a custom dispatcher, a test harness, a
+//// second consumer of lifecycle data.
 ////
 //// ## When you reach for this
 ////
-//// `start` gives back a subject; typed events flow to the subject you
-//// passed as `events`, and connection news to the `lifecycle` subject if
-//// you supplied one. Connection trouble is not a `start` failure:
+//// `start` gives back a subject. Typed events flow to the subject you
+//// passed as `events`, and connection news to the `lifecycle` subject
+//// if you supplied one. Connection trouble is not a `start` failure:
 //// attempts retry with backoff and report through `lifecycle` instead.
 ////
 //// ## ShardConfig, field by field
 ////
-//// - `token` — the bot token, sent inside IDENTIFY and RESUME payloads.
-//// - `intents` — the raw bitfield Discord expects in IDENTIFY. Build it
+//// - `token`: the bot token, sent inside IDENTIFY and RESUME payloads.
+//// - `intents`: the raw bitfield Discord expects in IDENTIFY. Build it
 ////   with tadpole/intent and `intent.to_int`, not by hand.
-//// - `shard` — `#(shard_id, shard_count)`, Discord's documented order.
+//// - `shard`: `#(shard_id, shard_count)`, Discord's documented order.
 ////   One shard this milestone: `#(0, 1)`.
-//// - `url` — the full gateway URL including version and encoding, e.g.
+//// - `url`: the full gateway URL including version and encoding, e.g.
 ////   `wss://gateway.discord.gg/?v=10&encoding=json` (bot.gleam's
 ////   constant). No default; the caller always names one. When READY
 ////   names a resume_gateway_url, later resume reconnects dial that
 ////   host instead, carrying this URL's query parameters.
-//// - `lifecycle` — `Some(subject)` to receive Lifecycle notices, `None`
+//// - `lifecycle`: `Some(subject)` to receive Lifecycle notices, `None`
 ////   to run silent.
 ////
 //// ## Lifecycle
 ////
-//// - `Connected` — the websocket handshake succeeded; HELLO has not
+//// - `Connected`: the websocket handshake succeeded. HELLO has not
 ////   arrived, so identify/resume has not run.
-//// - `Disconnected(close_code, will_resume)` — the connection closed.
+//// - `Disconnected(close_code, will_resume)`: the connection closed.
 ////   `close_code` is Discord's code, or 1006 when the transport died
 ////   without one. `will_resume` is the decision that follows.
-//// - `ConnectFailed(error)` — one connect attempt failed; a retry is
+//// - `ConnectFailed(error)`: one connect attempt failed. A retry is
 ////   already scheduled. Expect this repeatedly during outages.
 ////
 //// ## ShardMsg and the reconnect ladder
 ////
 //// `ShardMsg` is the actor's message type, public only because the
-//// subject's type mentions it. Callers send `Stop`; every other variant
-//// (HeartbeatTick, Inbound, SocketClosed, TransportDown, ReconnectNow)
-//// is plumbing driven by timers and the transport. `Stop` closes the
-//// socket and stops the actor; it does not wait for Discord to
-//// acknowledge the close frame.
+//// subject's type mentions it. Callers send `Stop`; every other
+//// variant (HeartbeatTick, Inbound, SocketClosed, TransportDown,
+//// ReconnectNow) is plumbing driven by timers and the transport.
+//// `Stop` closes the socket and stops the actor. It does not wait for
+//// Discord to acknowledge the close frame.
 ////
-//// The close-code ladder, applied by `next_action_on_close` and tested
-//// against [`tadpole/gateway`](../gateway.html):
+//// The close-code ladder, applied by `next_action_on_close` and
+//// tested against [`tadpole/gateway`](../gateway.html):
 ////
 //// | Situation | Action |
 //// | --- | --- |
-//// | close 4004, 4010-4014 (bad token, bad shard, bad version, bad or disallowed intents) | `GiveUp` — the docs mark these reconnect: false; a config problem, retrying without a fix loops |
+//// | close 4004, 4010-4014 (bad token, bad shard, bad version, bad or disallowed intents) | `GiveUp`. The docs mark these reconnect: false. A config problem; retrying without a fix loops. |
 //// | close 1000, 1001, 1006, 4000, 4001, 4002, with a stored session | `Resume` |
 //// | same codes, no stored session | `IdentifyFresh` |
-//// | close 4003 (not authenticated), 4005-4009, or any other code | `IdentifyFresh` — the docs mark 4003 reconnect: true, and every other reconnectable close has an unusable session |
-//// | op 9 Invalid Session, `d` = true | `Resume` — outranks whatever close code follows |
-//// | op 9 Invalid Session, `d` = false | `IdentifyFresh`; the stored session is forgotten |
+//// | close 4003 (not authenticated), 4005-4009, or any other code | `IdentifyFresh`. The docs mark 4003 reconnect: true, and every other reconnectable close has an unusable session. |
+//// | op 9 Invalid Session, `d` = true | `Resume`. Outranks whatever close code follows. |
+//// | op 9 Invalid Session, `d` = false | `IdentifyFresh`. The stored session is forgotten. |
 //// | transport died with no close frame | treated as 1006 |
-//// | 3 missed heartbeat ACKs | close with a keep-session code, reconnect, attempt to resume — the docs' zombie rule; a failed resume falls through to fresh |
+//// | 3 missed heartbeat ACKs | close with a keep-session code, reconnect, attempt to resume. The docs' zombie rule. A failed resume falls through to fresh. |
 ////
 //// ## Heartbeat and zombie rules
 ////
-//// HELLO carries the heartbeat interval — floored at 1s, and 45s if
-//// Discord's HELLO is unreadable, so zombie detection keeps running.
+//// HELLO carries the heartbeat interval, floored at 1s, and 45s if
+//// Discord's HELLO is unreadable so zombie detection keeps running.
 //// The first heartbeat waits `interval * jitter` per the docs'
 //// thundering-herd rule, applied by
-//// [`gateway.first_heartbeat_delay_ms`](../gateway.html) over a random
-//// draw. Each later tick sends a HEARTBEAT carrying the last sequence
-//// number and re-arms itself at the full interval; there is no
-//// separate timer process to supervise. Discord can also demand an
+//// [`gateway.first_heartbeat_delay_ms`](../gateway.html) over a
+//// random draw. Each later tick sends a HEARTBEAT carrying the last
+//// sequence number and re-arms itself at the full interval. There is
+//// no separate timer process to supervise. Discord can also demand an
 //// immediate heartbeat (op 1, often around RESUME); the shard answers
-//// with the current sequence. A HEARTBEAT_ACK resets the miss counter;
-//// after `gateway.max_missed_acks` (3) missed ACKs the connection is a
-//// zombie and the shard reconnects fresh.
+//// with the current sequence. A HEARTBEAT_ACK resets the miss
+//// counter. After `gateway.max_missed_acks` (3) missed ACKs the
+//// connection is a zombie and the shard reconnects fresh.
 ////
-//// Reconnects wait `gateway.backoff_ms(attempts)`: 1s, 2s, 4s, ... capped
-//// at 60s, no jitter. HELLO resets the attempt counter.
+//// Reconnects wait `gateway.backoff_ms(attempts)`: 1s, 2s, 4s, ...
+//// capped at 60s, no jitter. HELLO resets the attempt counter.
 ////
 //// ## Concurrency
 ////
-//// One actor owns everything: session id, sequence, heartbeat counters,
-//// the connection, its timers. Nothing to lock.
+//// One actor owns everything: session id, sequence, heartbeat
+//// counters, the connection, its timers. Nothing to lock.
 ////
-//// - `process.send` to the shard, events, or lifecycle subject is safe
-////   from any process; sends are async and never block.
-//// - The events subject can only be received by its owner — create it
+//// - `process.send` to the shard, events, or lifecycle subject is
+////   safe from any process. Sends are async and never block.
+//// - The events subject can only be received by its owner. Create it
 ////   in the process that will read it.
-//// - `start` blocks for at most one websocket handshake (~5s); after
+//// - `start` blocks for at most one websocket handshake (~5s). After
 ////   that everything is async.
-//// - `next_action_on_close` and `on_invalid_session` are pure — safe
+//// - `next_action_on_close` and `on_invalid_session` are pure, safe
 ////   to call anywhere, which is how tests pin the ladder.
 ////
 //// ## Example
@@ -105,7 +106,7 @@
 //// import tadpole/gateway/shard
 //// import tadpole/intent
 ////
-//// // Illustrative — tadpole/bot wires exactly this.
+//// // Illustrative. tadpole/bot wires exactly this.
 //// pub fn run_shard(token: String) -> process.Subject(shard.ShardMsg) {
 ////   let events = process.new_subject()
 ////   let assert Ok(shard_subject) =
@@ -128,9 +129,9 @@
 ////
 //// ## See also
 ////
-//// - [`tadpole/gateway`](../gateway.html) — the pure tables this actor applies
-//// - [`tadpole/gateway/transport`](transport.html) — the websocket under the actor
-//// - [`tadpole/bot`](../bot.html) — the user-facing wiring of this module
+//// - [`tadpole/gateway`](../gateway.html) the pure tables this actor applies
+//// - [`tadpole/gateway/transport`](transport.html) the websocket under the actor
+//// - [`tadpole/bot`](../bot.html) the user-facing wiring of this module
 
 import gleam/dynamic/decode as d
 import gleam/erlang/process.{type Subject}
@@ -150,7 +151,7 @@ import tadpole/gateway/opcode
 import tadpole/gateway/transport
 
 /// A close code to assume when the transport died without one. Abnormal
-/// closure: reconnect, keep the session — the network, not Discord's
+/// closure: reconnect, keep the session. The network, not Discord's
 /// session store, is what failed.
 const abnormal_close = 1006
 
@@ -183,7 +184,7 @@ pub type Lifecycle {
   ConnectFailed(error: TadpoleError)
 }
 
-/// Messages the shard actor runs on. Internal plumbing — the subject
+/// Messages the shard actor runs on. Internal plumbing. The subject
 /// type leaks it, but callers only ever send `Stop` themselves.
 pub type ShardMsg {
   /// Heartbeat interval fired. The shard re-arms the timer after each
@@ -241,8 +242,8 @@ pub fn on_invalid_session(resumable: Bool) -> CloseAction {
 }
 
 /// The URL the next connection dials. A resume dials the gateway URL
-/// Discord handed out at READY — the docs: it replaces the URL first
-/// connected with, carrying the same query parameters — and every
+/// Discord handed out at READY. The docs say it replaces the URL first
+/// connected with, carrying the same query parameters. Every
 /// other connection dials the configured URL. When READY offered no
 /// resume URL, the configured URL keeps working. Pure so tests pin
 /// the choice.
@@ -257,7 +258,7 @@ pub fn connect_url(
   }
 }
 
-/// READY's resume_gateway_url arrives bare — no path, no query — so
+/// READY's resume_gateway_url arrives bare (no path, no query) so
 /// the dial URL is that host plus the configured connection's query
 /// parameters: version and encoding stay the same, the host follows
 /// Discord's instruction. A missing path becomes "/" so the handshake
@@ -291,7 +292,7 @@ fn resume_dial_url(base: String, config_url: String) -> String {
 }
 
 /// An empty path means the URL is scheme://authority plus, maybe, a
-/// query — the separator goes between the authority and the query.
+/// query. The separator goes between the authority and the query.
 fn with_path_separator(url: String) -> String {
   case string.split_once(url, "?") {
     Ok(#(before_query, query)) -> before_query <> "/?" <> query
@@ -302,8 +303,8 @@ fn with_path_separator(url: String) -> String {
 /// Start one shard: an actor that connects to `config.url`, identifies
 /// (or resumes a stored session), heartbeats on Discord's interval, and
 /// dispatches typed events to `events`. `start` itself never fails on
-/// network problems — connection attempts retry with gateway backoff and
-/// report through `config.lifecycle` — so callers get a subject back and
+/// network problems. Connection attempts retry with gateway backoff and
+/// report through `config.lifecycle`, so callers get a subject back and
 /// the shard does the rest.
 ///
 /// The initialiser blocks for at most one websocket handshake (~5s).
@@ -461,7 +462,7 @@ fn dispatch(
     Some(name) -> {
       // READY carries the session id RESUME needs later, plus the
       // gateway URL that resume should dial. Targeted decoders read
-      // both straight from the raw frame — a READY whose other fields
+      // both straight from the raw frame. A READY whose other fields
       // fail to decode still keeps the session alive.
       let state = case name, ready_session_fields(frame.raw) {
         "READY", Some(#(session_id, resume_url)) ->
@@ -664,7 +665,7 @@ fn shutdown(state: ShardState) -> actor.Next(ShardState, ShardMsg) {
 }
 
 /// Connect (or reconnect). Called from the initialiser and from
-/// ReconnectNow; never fails the actor — failures schedule a retry.
+/// ReconnectNow; never fails the actor. Failures schedule a retry.
 fn establish(state: ShardState) -> ShardState {
   let url =
     connect_url(state.config.url, state.resume_gateway_url, state.resume_next)

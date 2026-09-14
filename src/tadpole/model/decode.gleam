@@ -7,7 +7,7 @@
 //// ## When you reach for this
 ////
 //// Through the model decoders (`user.decoder()`, `message.decoder()`,
-//// etc.) — they call `snowflake_id` and `from_json` internally. Directly
+//// etc.) they call `snowflake_id` and `from_json` internally. Directly
 //// when you write a decoder for a new Discord model and need validated
 //// snowflake fields.
 ////
@@ -21,7 +21,7 @@
 //// Internals: `snowflake_id` validates Discord's string ids inside the
 //// decoder pipeline (a non-snowflake string fails with the offending
 //// text in `got`), and `from_json` reports the first failure with a
-//// JSON path — fields joined by dots, list indices in brackets. See
+//// JSON path. Fields joined by dots, list indices in brackets. See
 //// also [`tadpole/types/ids`](../types/ids.html) for the constructors
 //// and [`tadpole/error`](../error.html) for the `DecodeFailed` shape.
 
@@ -49,7 +49,7 @@ pub fn snowflake_id(
     Error(_) -> {
       // d.failure needs a placeholder of the opaque ID type, and only the
       // ids module can build one. "0" is always a valid snowflake (it
-      // embeds timestamp 0), so this assert cannot fire — and the
+      // embeds timestamp 0), so this assert cannot fire. And the
       // placeholder is never returned; only the error below escapes.
       let assert Ok(placeholder) = constructor("0")
       d.failure(placeholder, "a Discord snowflake string")
@@ -73,7 +73,7 @@ pub fn snowflake_id(
 /// The reported path is relative to the event object: fields join with
 /// dots, list indices go in brackets (`author.id`, `mentions[0].username`),
 /// and a payload that is not JSON at all reports `$`. Only the first
-/// problem found is reported — fix it and re-run to see the next one.
+/// problem found is reported. Fix it and re-run to see the next one.
 pub fn from_json(
   event: Option(String),
   payload: String,

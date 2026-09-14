@@ -1,5 +1,5 @@
 //// The websocket transport: stratus behind a wall. Gateway code sees
-//// frames in and a send/close handle out; stratus's Connection and
+//// frames in and a send/close handle out. Stratus's Connection and
 //// InternalMessage types never cross this module, and neither does the
 //// socket. The shard actor owns the protocol state on top of it.
 //// Stability: Growing.
@@ -15,45 +15,46 @@
 ////
 //// ## The Connection contract
 ////
-//// `Connection` is opaque: it holds the stratus subject and the owning
+//// `Connection` is opaque. It holds the stratus subject and the owning
 //// process id, and nothing outside this module may touch either. That
-//// is what makes the socket race-free — only the transport actor ever
+//// is what makes the socket race-free: only the transport actor ever
 //// writes to it.
 ////
-//// - `connect` blocks until the handshake finishes (stratus's 5s connect
-////   timeout) and fails with `GatewayConnectFailed` for a bad URL or a
-////   failed handshake. Server frames are parsed with
-////   [`tadpole/gateway/frame`](frame.html) and forwarded to `inbound`;
-////   text that is not a gateway envelope is dropped with a warning,
-////   never a crash, and binary frames are ignored (the v10 JSON gateway
-////   sends none).
-//// - `send_text` blocks until the transport actor has written the frame
-////   (up to 5s). If the transport process is already dead, the call
-////   crashes the caller — the shard only sends between protocol steps
-////   and treats a dead transport as a close, not as data loss to hide.
-//// - `close` sends a close frame whose code depends on the intent:
+//// - `connect` blocks until the handshake finishes (stratus's 5s
+////   connect timeout) and fails with `GatewayConnectFailed` for a bad
+////   URL or a failed handshake. Server frames are parsed with
+////   [`tadpole/gateway/frame`](frame.html) and forwarded to `inbound`.
+////   Text that is not a gateway envelope is dropped with a warning,
+////   never a crash, and binary frames are ignored (the v10 JSON
+////   gateway sends none).
+//// - `send_text` blocks until the transport actor has written the
+////   frame (up to 5s). If the transport process is already dead, the
+////   call crashes the caller. The shard only sends between protocol
+////   steps and treats a dead transport as a close, not as data loss
+////   to hide.
+//// - `close` sends a close frame whose code depends on the intent.
 ////   `KeepSession` sends 4900 (outside the 1000/1001 pair Discord
-////   treats as session invalidation), `EndSession` sends 1000. It
-////   returns immediately; the `Closed` notice or process death follows
-////   on its own.
+////   treats as session invalidation). `EndSession` sends 1000. It
+////   returns immediately; the `Closed` notice or process death
+////   follows on its own.
 ////
 //// ## TransportDown and Closed
 ////
 //// `Closed(close_code)` arrives on the subject given to `connect` when
-//// the server closes the connection: Discord's code when a close frame
-//// came, 1006 when the socket died without one. Stratus's close reasons
-//// are mapped back to wire codes here — custom 4xxx codes pass through,
-//// NotProvided becomes 1006.
+//// the server closes the connection. Discord's code when a close frame
+//// came, 1006 when the socket died without one. Stratus's close
+//// reasons are mapped back to wire codes here. Custom 4xxx codes pass
+//// through, NotProvided becomes 1006.
 ////
 //// ## Monitor, not link
 ////
 //// A connection can also die with no close at all (process death, a
-//// dropped socket) — that is not a `Closed` notice, it is the monitor
+//// dropped socket). That is not a `Closed` notice, it is the monitor
 //// firing. `connect` starts the connection as its own actor, which
 //// links to its spawner like any Gleam actor. The shard immediately
 //// severs that link (`process.unlink(transport.owner_pid(conn))`) and
 //// monitors the process instead: a transport death must notify the
-//// shard, not kill it. The monitor is the death signal; `Closed` is
+//// shard, not kill it. The monitor is the death signal. `Closed` is
 //// the polite one, and the shard swallows late duplicates with its
 //// `closed_handled` flag.
 ////
@@ -65,8 +66,8 @@
 ////
 //// ## See also
 ////
-//// - [`tadpole/gateway/shard`](shard.html) — the only consumer
-//// - [`tadpole/gateway/frame`](frame.html) — the frames it forwards
+//// - [`tadpole/gateway/shard`](shard.html) the only consumer
+//// - [`tadpole/gateway/frame`](frame.html) the frames it forwards
 
 import gleam/erlang/process.{type Pid, type Subject}
 import gleam/http
@@ -171,7 +172,7 @@ pub fn connect(
 
 /// Send one text frame. Blocks until the transport actor has written it
 /// (up to 5s). Fails when the socket refuses the write; if the transport
-/// process is gone the call crashes the caller — the shard only sends
+/// process is gone the call crashes the caller. The shard only sends
 /// between protocol steps and treats a dead transport as a close.
 pub fn send_text(
   conn: Connection,
@@ -200,7 +201,7 @@ pub fn owner_pid(conn: Connection) -> Pid {
 }
 
 /// The stratus upgrade request for `url`. `wss` maps to TLS and `ws` to
-/// plain TCP; anything else is rejected — the gateway is always a
+/// plain TCP; anything else is rejected. The gateway is always a
 /// websocket URL, and a config typo should fail immediately, not as a
 /// handshake mystery.
 pub fn gateway_request(url: String) -> Result(Request(String), TadpoleError) {
@@ -287,7 +288,7 @@ fn handle_transport_message(
     stratus.User(SendClose(intent)) -> {
       // The intent picks the code: 4900 keeps the session for a resume,
       // 1000 invalidates it. 1001 would also invalidate, so it is never
-      // sent — the docs are explicit about the pair.
+      // sent. The docs are explicit about the pair.
       case intent {
         KeepSession -> {
           let _ =

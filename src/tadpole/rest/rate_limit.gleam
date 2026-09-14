@@ -1,18 +1,20 @@
 //// Per-bucket rate-limit state for REST: the numbers responses have
-//// reported and the waits they imply. Values come from response headers
-//// and 429 bodies only — no hardcoded table, because Discord changes
-//// buckets without notice and the headers are the only truth available.
+//// reported and the waits they imply. Values come from response
+//// headers and 429 bodies only. No hardcoded table, because Discord
+//// changes buckets without notice and the headers are the only truth
+//// available.
 ////
-//// Pure: no processes, no clock. Time enters as integer arguments; the
-//// caller owns the clock and the route -> bucket map (`associate`).
+//// Pure: no processes, no clock. Time enters as integer arguments;
+//// the caller owns the clock and the route -> bucket map (`associate`).
 //// Stability: Growing.
 ////
-//// [`tadpole/rest/execute`](execute.html) owns the bookkeeping; this
-//// module owns the arithmetic. Nothing here sleeps, sends, or remembers.
+//// [`tadpole/rest/execute`](execute.html) owns the bookkeeping. This
+//// module owns the arithmetic. Nothing here sleeps, sends, or
+//// remembers.
 ////
 //// ## When you reach for this
 ////
-//// Directly, almost never — unless you are writing your own executor or
+//// Directly, almost never. Unless you are writing your own executor or
 //// a test that wants exact wait math. `BucketState` is a public record
 //// on purpose, same status as RestRequest: plain data, nothing here is
 //// an invariant worth guarding.
@@ -22,48 +24,48 @@
 //// `wait_ms(state, now_ms)` answers "how long should the next request
 //// on this bucket hold off?". The parameter name misleads everyone
 //// once: `now_ms` is NOT a clock reading. It is the time elapsed since
-//// the response that last updated this state — `0` immediately after
+//// the response that last updated this state: `0` immediately after
 //// `update`, and whatever the caller's clock says after that. Tadpole
 //// never reads a clock; the caller stamps each response and subtracts.
 ////
 //// Priority order: a 429's retry window first (`retry_after_ms` minus
-//// elapsed), then a known-empty bucket (`remaining == 0`) counting down
-//// `reset_after_ms`, else 0. That final 0 is deliberate: with no
-//// headers observed, fire and accept the risk of another 429 —
-//// inventing a wait would stall buckets Discord never limited.
+//// elapsed), then a known-empty bucket (`remaining == 0`) counting
+//// down `reset_after_ms`, else 0. That final 0 is deliberate: with no
+//// headers observed, fire and accept the risk of another 429.
+//// Inventing a wait would stall buckets Discord never limited.
 ////
 //// ## Route masking
 ////
 //// `route_key` masks every all-digit path segment of 15+ characters to
 //// `:id`, producing "GET /channels/:id/messages". That is a grouping
-//// key, not Discord's bucket identity: it folds every channel id into
-//// one key, so pre-bucket state mixes traffic across major parameters —
-//// a wait learned on channel A gates channel B too. Discord's real
-//// per-id bucketing is visible only in the `X-RateLimit-Bucket` header,
-//// which is what `associate` binds.
+//// key, not Discord's bucket identity. It folds every channel id into
+//// one key, so pre-bucket state mixes traffic across major parameters.
+//// A wait learned on channel A gates channel B too. Discord's real
+//// per-id bucketing is visible only in the `X-RateLimit-Bucket`
+//// header, which is what `associate` binds.
 ////
 //// ## associate: re-keying
 ////
 //// Until a response names a bucket, state lives under the masked route
 //// key. `associate` binds route key -> bucket id once
-//// `X-RateLimit-Bucket` appears; from that response on, the bucket id is
-//// the state key and lookups should prefer it. A later response naming
-//// a different bucket simply overwrites the binding — Discord
+//// `X-RateLimit-Bucket` appears. From that response on, the bucket id
+//// is the state key and lookups should prefer it. A later response
+//// naming a different bucket simply overwrites the binding. Discord
 //// reshuffles buckets sometimes. No bucket header, no change.
 ////
 //// ## Failure modes
 ////
 //// Cannot fail: no I/O, and nothing parses but what the caller already
-//// parsed. Degenerate inputs degrade instead — `update` with no parsed
-//// headers leaves the state untouched; a half-headered response
+//// parsed. Degenerate inputs degrade instead. `update` with no parsed
+//// headers leaves the state untouched. A half-headered response
 //// downgrades the fields it omits to `None` (the response is the whole
-//// truth). Only a 429 sets the retry window; a `Retry-After` on any
+//// truth). Only a 429 sets the retry window. A `Retry-After` on any
 //// other status is ignored.
 ////
 //// ## See also
 ////
-//// - [`tadpole/rest/execute`](execute.html) — the caller that juggles this state
-//// - [`tadpole/rest`](../rest.html) — the header parsing that feeds `update`
+//// - [`tadpole/rest/execute`](execute.html) the caller that juggles this state
+//// - [`tadpole/rest`](../rest.html) the header parsing that feeds `update`
 
 import gleam/dict.{type Dict}
 import gleam/float
@@ -158,7 +160,7 @@ fn retry_window_ms(headers: RateLimitHeaders) -> Option(Int) {
 ///
 /// Priority: a 429's retry window first, then a known-empty bucket
 /// (`remaining` 0) counting down `reset_after`, else 0. That final 0 is
-/// optimistic — with no headers observed we fire and accept the risk of
+/// optimistic. With no headers observed we fire and accept the risk of
 /// another 429, because inventing a wait would stall buckets Discord never
 /// limited. Windows also anchor when `update` runs, so network latency
 /// makes waits slightly longer than strictly needed; that skew errs safe.
@@ -179,7 +181,7 @@ pub fn wait_ms(state: BucketState, now_ms: Int) -> Int {
 ///
 /// This is a grouping key, not Discord's bucket identity. Masking folds
 /// every channel (or guild, or webhook) id into one key, so pre-bucket
-/// state mixes traffic across major parameters — a wait learned on channel
+/// state mixes traffic across major parameters. A wait learned on channel
 /// A gates channel B too, and a 429 on B can surprise A's state. Discord's
 /// real per-id bucketing is only visible in the `X-RateLimit-Bucket`
 /// header; `associate` binds it once a response has been seen, and lookups
@@ -213,7 +215,7 @@ fn is_digits(segment: String) -> Bool {
 }
 
 /// Bind a route key to the `X-RateLimit-Bucket` id the response carried.
-/// No bucket header, or no parsed headers — the dict comes back unchanged.
+/// No bucket header, or no parsed headers. The dict comes back unchanged.
 ///
 /// The dict belongs to the caller and stays plain data: key it by
 /// `route_key` output, check it before each request, and from the first

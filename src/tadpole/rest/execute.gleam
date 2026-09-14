@@ -1,19 +1,20 @@
-//// The REST executor: turns RestRequests into responses over an injected
-//// transport. Tests run against canned `gleam/http` values; the Erlang
-//// target ships gleam_httpc. Rate-limit behaviour is learned from
-//// response headers and 429 bodies only (see tadpole/rest/rate_limit)
-//// and applied as best-effort waits before sending.
+//// The REST executor: turns RestRequests into responses over an
+//// injected transport. Tests run against canned `gleam/http` values;
+//// the Erlang target ships gleam_httpc. Rate-limit behaviour is
+//// learned from response headers and 429 bodies only (see
+//// tadpole/rest/rate_limit) and applied as best-effort waits before
+//// sending.
 ////
-//// Transport failures surface as RestStatus with the synthetic status 0
-//// and a "no HTTP response: ..." body. No variant in error.gleam
-//// describes a REST transport failure honestly — GatewayConnectFailed
-//// means gateway reconnects — and status 0 reads as "no HTTP happened"
+//// Transport failures surface as RestStatus with the synthetic status
+//// 0 and a "no HTTP response: ..." body. No variant in error.gleam
+//// describes a REST transport failure honestly (GatewayConnectFailed
+//// means gateway reconnects) and status 0 reads as "no HTTP happened"
 //// anywhere a status is printed.
 ////
 //// ## When you reach for this
 ////
 //// Behind [`tadpole/rest/endpoints`](endpoints.html) for the known
-//// calls; directly when you need a Discord route the endpoint helpers
+//// calls. Directly when you need a Discord route the endpoint helpers
 //// do not wrap, or when one run of calls should share rate-limit state
 //// (`send_in_session`). Tests reach for it constantly: `Transport` is
 //// one function.
@@ -21,8 +22,8 @@
 //// ## Transport injection
 ////
 //// `Transport` is
-//// `fn(Request(String)) -> Result(Response(String), TransportError)` —
-//// the executor knows nothing else about HTTP. `httpc_transport`
+//// `fn(Request(String)) -> Result(Response(String), TransportError)`.
+//// The executor knows nothing else about HTTP. `httpc_transport`
 //// wraps gleam_httpc for production; tests hand in a closure returning
 //// canned responses; a future JS target would hand in fetch. The
 //// TransportError shapes mirror gleam_httpc 5.x's `HttpError`
@@ -31,7 +32,7 @@
 ////
 //// ## The status-0 convention
 ////
-//// When the transport fails — no connection, timeout, non-UTF-8 body —
+//// When the transport fails (no connection, timeout, non-UTF-8 body)
 //// no HTTP response exists to report. Rather than stretch a variant,
 //// the failure becomes `error.RestStatus` with `status: 0`,
 //// `discord_code: None`, and the transport's own description in the
@@ -41,12 +42,12 @@
 ////
 //// ## send, send_with_sleep, send_in_session
 ////
-//// - `send` — one request, throwaway rate-limit state: waits learned
+//// - `send`: one request, throwaway rate-limit state. Waits learned
 ////   during this call throttle only this call's own 429 retries, and
 ////   nothing carries to the next call. What the endpoint helpers use.
-//// - `send_with_sleep` — `send` with the sleep function injected;
-////   tests pass a recorder instead of waiting real milliseconds.
-//// - `send_in_session` — the request runs inside a `RestSession`, so a
+//// - `send_with_sleep`: `send` with the sleep function injected.
+////   Tests pass a recorder instead of waiting real milliseconds.
+//// - `send_in_session`: the request runs inside a `RestSession`, so a
 ////   wait learned from one response gates the next call on the same
 ////   route. Returns the updated session; thread it through your loop.
 ////
@@ -54,17 +55,17 @@
 ////
 //// On a 429: fold the response into the session, then, if the client
 //// has `retry_on_429` and attempts remain, sleep the window the
-//// response asked for — the `Retry-After` header (whole seconds, to ms)
-//// first, else the body's fractional `retry_after` — and try again.
-//// When retries run out, the error is `error.RateLimited` carrying the
-//// route, the last window in ms, the global flag, and the bucket id.
-//// Zero-window 429s retry immediately. Sleeps are real
+//// response asked for. The `Retry-After` header (whole seconds, to
+//// ms) first, then the body's fractional `retry_after`, then try
+//// again. When retries run out, the error is `error.RateLimited`
+//// carrying the route, the last window in ms, the global flag, and
+//// the bucket id. Zero-window 429s retry immediately. Sleeps are real
 //// `process.sleep`: the calling process waits.
 ////
 //// ## RestSession ownership honesty
 ////
 //// A `RestSession` is a plain value, not a process. Passing it to two
-//// processes gives each an independent copy — no cross-process
+//// processes gives each an independent copy: no cross-process
 //// coordination, and no corruption either. The executor owns no clock:
 //// a wait is measured as time elapsed since the response that produced
 //// it, so a session reused long after real time passed waits slightly
@@ -75,7 +76,7 @@
 //// - `send` and `send_with_sleep` share nothing between calls: safe
 ////   from as many processes as you like.
 //// - A session threaded through one process serializes that route's
-////   calls — that is the point. Sent across processes, it is copied
+////   calls. That is the point. Sent across processes, it is copied
 ////   and learned waits diverge silently (see above).
 //// - Every sleep blocks the calling process: pre-send waits, 429
 ////   windows, and the HTTP round trip (bounded by the client timeout).
@@ -83,15 +84,15 @@
 //// ## Failure modes
 ////
 //// `RestStatus` for any non-2xx and `RateLimited` when 429s outlast
-//// the retries — nothing else. The body is returned raw, so no
+//// the retries. Nothing else. The body is returned raw, so no
 //// `DecodeFailed` here; decoding is the endpoint's job. Never panics,
 //// and the token never appears in an error.
 ////
 //// ## See also
 ////
-//// - [`tadpole/rest/rate_limit`](rate_limit.html) — the pure state behind the waits
-//// - [`tadpole/rest`](../rest.html) — request builders and header parsing
-//// - [`tadpole/rest/endpoints`](endpoints.html) — the endpoint helpers on top
+//// - [`tadpole/rest/rate_limit`](rate_limit.html) the pure state behind the waits
+//// - [`tadpole/rest`](../rest.html) request builders and header parsing
+//// - [`tadpole/rest/endpoints`](endpoints.html) the endpoint helpers on top
 
 import gleam/dict
 import gleam/dynamic/decode as d
@@ -113,7 +114,7 @@ import tadpole/rest/rate_limit
 import tadpole/user_agent
 
 /// What a transport can fail with. The shapes mirror gleam_httpc 5.x's
-/// `HttpError` one-to-one — the only transport shipped here — so nothing
+/// `HttpError` one-to-one. The only transport shipped here, so nothing
 /// is lost in translation and a different transport maps onto the same
 /// three cases.
 pub type TransportError {
@@ -188,7 +189,7 @@ fn connect_error_to_string(connect_error: ConnectError) -> String {
 
 /// Rate-limit bookkeeping for a run of calls: the client, the observed
 /// bucket states, and the route -> bucket bindings. A plain value, not a
-/// process — passing it to two processes gives each its own copy, and
+/// process. Passing it to two processes gives each its own copy, and
 /// cross-process coordination is future work.
 ///
 /// States are keyed by the masked route key until a response names a
@@ -217,8 +218,8 @@ pub fn new_session(client: rest.RestClient) -> RestSession {
 /// with `send_in_session`.
 ///
 /// Fails with RestStatus for any non-2xx (status 0 means the transport
-/// never got a response), DecodeFailed is not raised here — the body is
-/// returned raw — and RateLimited once 429s outlast the configured
+/// never got a response), DecodeFailed is not raised here. The body is
+/// returned raw, and RateLimited once 429s outlast the configured
 /// retries. Never panics; the token never appears in an error.
 pub fn send(
   client: rest.RestClient,
@@ -246,7 +247,7 @@ pub fn send_with_sleep(
 ///
 /// The executor owns no clock: a wait is measured from the response that
 /// produced it, as if that response had just arrived. A session reused
-/// after real time has passed can therefore wait slightly long — that
+/// after real time has passed can therefore wait slightly long. That
 /// errs safe. The first call on an unknown route always sends
 /// immediately; limits are discovered, not predicted.
 pub fn send_in_session(
@@ -264,7 +265,7 @@ pub fn send_in_session(
 
 /// One send round: gate, dispatch, record, then either done, retry, or
 /// mapped error. `elapsed_ms` is time slept since the response that last
-/// updated this route's bucket state — 0 right after `record`, the
+/// updated this route's bucket state. 0 right after `record`, the
 /// window we slept after a 429.
 fn attempt(
   session: RestSession,
@@ -492,8 +493,8 @@ fn rate_limited_error(
 }
 
 /// The wait a 429 asked for, in ms: the Retry-After header (whole
-/// seconds) first, then the body's retry_after — Discord sends that one
-/// as a fractional number of seconds too — else 0, the same optimism
+/// seconds) first, then the body's retry_after. Discord sends that one
+/// as a fractional number of seconds too. Else 0, the same optimism
 /// rate_limit.wait_ms shows when nothing is known.
 fn retry_window_ms(response: rest.RestResponse) -> Int {
   case response.rate_limit_headers {

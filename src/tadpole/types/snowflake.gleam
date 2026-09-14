@@ -4,18 +4,18 @@
 ////
 //// ## When you reach for this
 ////
-//// Through the opaque wrappers in [`tadpole/types/ids`](ids.html) —
-//// `message.channel_id` is a `ChannelId`, ready for `bot.send_message`,
-//// and most code never touches the raw snowflake. Come here for the raw
-//// value, validation, or the timestamp — sorting by age (older id =
-//// earlier creation) and dating objects without a timestamp field are the
-//// usual reasons.
+//// Through the opaque wrappers in [`tadpole/types/ids`](ids.html).
+//// `message.channel_id` is a `ChannelId`, ready for
+//// `bot.send_message`, and most code never touches the raw snowflake.
+//// Come here for the raw value, validation, or the timestamp.
+//// Sorting by age (older id = earlier creation) and dating objects
+//// without a timestamp field are the usual reasons.
 ////
 ////     let assert Ok(id) = snowflake.from_string("123456789012345678")
 ////     snowflake.timestamp_ms(id)  // unix ms of creation
 ////
 //// Validation rejects negatives and values whose embedded timestamp
-//// exceeds ~2090 (`TooFarInFuture`) — corrupted data, not a real id.
+//// exceeds ~2090 (`TooFarInFuture`). Corrupted data, not a real id.
 //// Everything else here cannot fail.
 
 import gleam/int

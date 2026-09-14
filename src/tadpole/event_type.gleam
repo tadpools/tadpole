@@ -3,9 +3,9 @@
 ////
 //// ## When you reach for this
 ////
-//// Through [`tadpole/gateway/events`](gateway/events.html) — the typed
-//// event layer uses `category` to decide which decoder to run. Directly
-//// when you need a specific event's required intent bits
+//// Through [`tadpole/gateway/events`](gateway/events.html) the typed
+//// event layer uses `category` to decide which decoder to run.
+//// Directly when you need a specific event's required intent bits
 //// (`required_intents`) or the full list of known event names
 //// (`all_known_names`).
 ////
@@ -33,7 +33,7 @@ pub type Category {
 }
 
 /// Map a gateway event name to its category. Unknown names land in
-/// `Other` — never a crash.
+/// `Other`, never a crash.
 pub fn category(event_name: String) -> Category {
   case event_name {
     "READY" -> Lifecycle
@@ -118,7 +118,7 @@ pub fn category(event_name: String) -> Category {
   }
 }
 
-/// True when the event name appears in this table — the shard can
+/// True when the event name appears in this table. The shard can
 /// decode it. Unknown names are not errors; they land in `Other`.
 pub fn is_known(event_name: String) -> Bool {
   category(event_name) != Other

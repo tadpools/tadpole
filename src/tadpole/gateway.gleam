@@ -5,7 +5,7 @@
 ////
 //// ## When you reach for this
 ////
-//// Through [`tadpole/gateway/shard`](gateway/shard.html) — the shard
+//// Through [`tadpole/gateway/shard`](gateway/shard.html) the shard
 //// actor calls `can_resume`, `should_reconnect`, `backoff_ms`,
 //// `first_heartbeat_delay_ms`, and `close_code_name` on a live
 //// connection. Directly when you need a close code's name (the bot
@@ -118,7 +118,7 @@ pub fn first_heartbeat_delay_ms(interval_ms: Int, jitter: Float) -> Int {
 /// considered dead (zombie). 3 missed ACKs triggers a reconnect.
 pub const max_missed_acks = 3
 
-/// Reset the missed-ACK counter to zero — the server acknowledged our
+/// Reset the missed-ACK counter to zero. The server acknowledged our
 /// heartbeat.
 pub fn ack_received(state: HeartbeatState) -> HeartbeatState {
   HeartbeatState(..state, missed_acks: 0)

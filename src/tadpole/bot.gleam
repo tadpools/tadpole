@@ -4,21 +4,21 @@
 //// The same Bot answers: `send_message` and `reply` post messages over
 //// the bot's REST client, and `stop` closes the gateway. Multi-shard
 //// fleets, handler supervision, and a stop that ends the program are
-//// later work — a handler crash takes the whole bot down, which beats a
+//// later work. A handler crash takes the whole bot down, which beats a
 //// silently dead bot.
 //// Stability: Experimental.
 ////
-//// New here? [`tadpole/guide`](guide.html) walks from an empty directory
-//// to a running bot; [`tadpole`](../tadpole.html) builds the config this
-//// module consumes.
+//// New here? [`tadpole/guide`](guide.html) walks from an empty
+//// directory to a running bot. [`tadpole`](../tadpole.html) builds
+//// the config this module consumes.
 ////
 //// ## When you reach for this
 ////
 //// For every first bot. `run` is the whole program: config, handler,
 //// block until killed. Use `start` instead when the rest of the
-//// program must keep working — it returns a Bot once the shard is up,
+//// program must keep working. It returns a Bot once the shard is up,
 //// and `stop` and the REST helpers are callable from any process
-//// later. Neither function runs more than one shard; that is refused
+//// later. Neither function runs more than one shard. That is refused
 //// at startup, not negotiated at runtime.
 ////
 //// ## Failure modes
@@ -26,9 +26,9 @@
 //// Startup failures return `Error` before any process starts, so a
 //// rejected config never leaves a half-running bot behind:
 ////
-//// - `MissingToken` / `InvalidTokenFormat` — the token was empty,
+//// - `MissingToken` / `InvalidTokenFormat`: the token was empty,
 ////   whitespace, too short, or carried quotes.
-//// - `ShardingNotSupported(got)` — the config asked for `got` shards;
+//// - `ShardingNotSupported(got)`: the config asked for `got` shards;
 ////   this milestone runs exactly one.
 ////
 //// After startup, `start` and `run` do not fail again. The shard
@@ -42,8 +42,8 @@
 //// `start`/`run`, so the whole bot comes down loudly. No supervision, no
 //// retry-around-handler in this version.
 ////
-//// `send_message` and `reply` fail with `RestStatus` — any non-2xx,
-//// where status 0 means no HTTP response happened at all — or with
+//// `send_message` and `reply` fail with `RestStatus` (any non-2xx,
+//// where status 0 means no HTTP response happened at all) or with
 //// `RateLimited` once 429 retries run out. `stop` never fails.
 ////
 //// ## Lifecycle notices
@@ -52,13 +52,13 @@
 //// through Erlang's `logging` at the config's `log_level` threshold.
 //// None of them carry the token.
 ////
-//// - `Connected` (Info) — the websocket handshake succeeded; HELLO has
+//// - `Connected` (Info): the websocket handshake succeeded. HELLO has
 ////   not arrived yet, so identify/resume has not run.
-//// - `Disconnected(close_code, will_resume)` (Warn) — the connection
+//// - `Disconnected(close_code, will_resume)` (Warn): the connection
 ////   closed. The code names the reason (tadpole/gateway's
 ////   `close_code_name`); `will_resume` says whether the next connection
 ////   resumes the session or identifies fresh.
-//// - `ConnectFailed(error)` (Warn) — one connect attempt failed; a
+//// - `ConnectFailed(error)` (Warn): one connect attempt failed. A
 ////   retry is already scheduled with backoff. The logged line stays
 ////   short; the full error goes to the shard's own logs.
 ////
@@ -74,7 +74,7 @@
 ////   delivered SEQUENTIALLY, one at a time in arrival order: the loop
 ////   does not read the next event until the handler returns. A slow
 ////   handler delays everything behind it. In exchange, handler state
-////   needs no locks — nothing else ever touches it.
+////   needs no locks. Nothing else ever touches it.
 //// - A `Bot` is a plain record, safe to pass to other processes or send
 ////   in messages. `send_message`, `reply`, and `stop` may be called from
 ////   any process; each REST call is independent and blocks its calling
@@ -135,14 +135,14 @@
 ////
 //// `run` blocks forever on success; Ctrl+C ends it. Without the Message
 //// Content portal toggle, other users' messages arrive with empty
-//// content — the gateway connects fine and then withholds the text.
+////   content. The gateway connects fine and then withholds the text.
 ////
 //// ## See also
 ////
-//// - [`tadpole`](../tadpole.html) — build and validate the config
-//// - [`tadpole/gateway/events`](gateway/events.html) — what the handler receives
-//// - [`tadpole/rest/endpoints`](rest/endpoints.html) — REST calls beyond the two helpers
-//// - [`tadpole/error/render`](error/render.html) — errors to readable text
+//// - [`tadpole`](../tadpole.html) build and validate the config
+//// - [`tadpole/gateway/events`](gateway/events.html) what the handler receives
+//// - [`tadpole/rest/endpoints`](rest/endpoints.html) REST calls beyond the two helpers
+//// - [`tadpole/error/render`](error/render.html) errors to readable text
 
 import gleam/erlang/process.{type Subject}
 import gleam/int
@@ -184,7 +184,7 @@ pub type Bot {
     shard: Subject(shard.ShardMsg),
     /// The token the shard identifies with. Never log it.
     token: String,
-    /// The HTTP transport the bot helpers run over — gleam_httpc for bots
+    /// The HTTP transport the bot helpers run over. gleam_httpc for bots
     /// built by `start`, anything you like for bots built by hand.
     transport: Transport,
   )
@@ -201,7 +201,7 @@ pub type Bot {
 /// Concurrency matches the module docs: the handler runs sequentially
 /// with no locks, and a crash in it takes the bot down loudly.
 ///
-///     // Illustrative — dev/echo_bot.gleam is the whole program.
+///     // Illustrative. dev/echo_bot.gleam is the whole program.
 ///     let assert Ok(tadbot) = bot.start(config, handle_event)
 ///     // later, from any process:
 ///     bot.stop(tadbot)
@@ -223,7 +223,7 @@ pub fn start(
 ///
 /// Use this in `main`; use `start` when something else in the program
 /// needs to keep working alongside the bot. The program ends when it is
-/// killed (Ctrl+C) or when the handler crashes — there is no graceful
+/// killed (Ctrl+C) or when the handler crashes. There is no graceful
 /// shutdown yet. Startup failures return immediately: a rejected config
 /// never blocks.
 pub fn run(
@@ -243,13 +243,13 @@ pub fn run(
 
 /// POST one text message to a channel, over the bot's REST client.
 ///
-/// Fails with `RestStatus` when Discord answers non-2xx — 403 usually
+/// Fails with `RestStatus` when Discord answers non-2xx (403 usually
 /// means the bot lacks Send Messages in that channel, 404 that the
-/// channel id is wrong — or with `RateLimited` once 429 retries run out.
+/// channel id is wrong) or with `RateLimited` once 429 retries run out.
 /// Discord truncates content past 2000 characters silently; tadpole does
 /// not second-guess that.
 ///
-///     // Illustrative shape — dev/echo_bot.gleam is the real program.
+///     // Illustrative shape. dev/echo_bot.gleam is the real program.
 ///     let assert Ok(tadbot) = bot.start(config, handle)
 ///     case bot.send_message(tadbot, channel, "hello pond") {
 ///       Ok(_) -> Nil
@@ -280,7 +280,7 @@ pub fn reply(
 
 /// Close the gateway: sends the shard actor its Stop message.
 ///
-/// Never fails and never blocks — the close is asynchronous, and the shard
+/// Never fails and never blocks. The close is asynchronous, and the shard
 /// does not wait for Discord to acknowledge it. The dispatcher keeps
 /// running (it holds nothing but memory) and exits when your program
 /// does; `run` does not return when you call this. To end the program,
@@ -324,7 +324,7 @@ fn bot_main(
   reply: Subject(Result(Bot, TadpoleError)),
 ) -> Nil {
   // Both subjects are created here, in the dispatcher, because a subject
-  // can only be received on by its owner — and this process reads them
+  // can only be received on by its owner. And this process reads them
   // for the bot's whole life. Everyone else may send.
   let events_subject = process.new_subject()
   let lifecycle = process.new_subject()

@@ -1,8 +1,8 @@
 //// Typed gateway events: the `Event` type a handler receives, one
 //// variant per modeled Discord event plus `Unknown` for everything
 //// else. `decode` maps a dispatch frame's name + raw payload to one
-//// variant; anything tadpole does not model yet lands in `Unknown` with
-//// the raw payload intact, so new Discord events degrade to data
+//// variant. Anything tadpole does not model yet lands in `Unknown`
+//// with the raw payload intact, so new Discord events degrade to data
 //// instead of crashing a bot.
 //// Stability: Growing.
 ////
@@ -19,20 +19,20 @@
 //// | --- | --- | --- |
 //// | `Ready(user, guild_count)` | READY | the bot's own user; `guild_count` counts the guilds READY listed, which arrive as `GuildCreate` moments later |
 //// | `MessageCreate(message)` | MESSAGE_CREATE | the full message object |
-//// | `MessageUpdate(update)` | MESSAGE_UPDATE | the PARTIAL message: ids always present, other fields may be absent — see [`tadpole/model/message`](../model/message.html)'s `update_decoder` |
+//// | `MessageUpdate(update)` | MESSAGE_UPDATE | the PARTIAL message: ids always present, other fields may be absent. See [`tadpole/model/message`](../model/message.html)'s `update_decoder`. |
 //// | `MessageDelete(id, channel_id, guild_id)` | MESSAGE_DELETE | ids only; `guild_id` is `None` in DMs |
 //// | `Resumed` | RESUMED | no payload modeled: RESUMED's `d` is a trace list |
 //// | `GuildCreate(guild)` | GUILD_CREATE | the full guild object |
-//// | `GuildDelete(unavailable)` | GUILD_DELETE | the `unavailable: true` stub — only the id is guaranteed |
+//// | `GuildDelete(unavailable)` | GUILD_DELETE | the `unavailable: true` stub. Only the id is guaranteed. |
 //// | `Unknown(name, raw)` | any other name | the event name and the raw frame JSON, untouched |
 ////
 //// ## Nothing here crashes a bot
 ////
-//// - Any name tadpole does not model — new Discord events included —
+//// - Any name tadpole does not model, new Discord events included,
 ////   decodes to `Unknown` and `decode` succeeds. Known events this
 ////   slice does not model are also data, not errors.
 //// - A modeled event whose payload no longer matches decodes to
-////   `Error(DecodeFailed)` from `decode` — but the shard never forwards
+////   `Error(DecodeFailed)` from `decode`. But the shard never forwards
 ////   that failure. It converts it to `Unknown(name, raw)` and keeps
 ////   running, so a handler sees `Unknown`, never a decode error.
 //// - `decode` is public for direct callers (tests, replay tools), who
@@ -56,9 +56,9 @@
 ////
 //// ## See also
 ////
-//// - [`tadpole/bot`](../bot.html) — where events are delivered
-//// - [`tadpole/model/message`](../model/message.html) — the two message shapes behind MESSAGE_CREATE/UPDATE
-//// - [`tadpole/gateway/shard`](shard.html) — the actor that decodes and forwards
+//// - [`tadpole/bot`](../bot.html) where events are delivered
+//// - [`tadpole/model/message`](../model/message.html) the two message shapes behind MESSAGE_CREATE/UPDATE
+//// - [`tadpole/gateway/shard`](shard.html) the actor that decodes and forwards
 
 import gleam/dynamic/decode as d
 import gleam/list
@@ -78,7 +78,7 @@ pub type Event {
   Ready(ready_user: User, guild_count: Int)
   /// MESSAGE_CREATE: a new message, decoded to the full model.
   MessageCreate(message: Message)
-  /// MESSAGE_UPDATE: the partial payload — ids always present, most
+  /// MESSAGE_UPDATE: the partial payload. ids always present, most
   /// fields may be absent. See tadpole/model/message's MessageUpdate.
   MessageUpdate(update: MessageUpdate)
   /// MESSAGE_DELETE: ids only, no content. guild_id is None for DMs.
@@ -99,12 +99,12 @@ pub type Event {
 }
 
 /// Decode one dispatched gateway event. `payload` is the full frame JSON
-/// as `frame.parse` saw it — envelope and all, `d` included — because the
+/// as `frame.parse` saw it. Envelope and all, `d` included, because the
 /// shard never re-parses.
 ///
 /// Modeled events decode to their variant and fail with DecodeFailed
 /// (event filled in) when Discord's payload does not match. Every other
-/// name — including known events this slice does not model — decodes to
+/// name, including known events this slice does not model, decodes to
 /// `Unknown` and never fails. RESUMED never fails either: it carries no
 /// data, so any payload is accepted.
 pub fn decode(

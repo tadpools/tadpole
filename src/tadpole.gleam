@@ -70,7 +70,7 @@
 //// Works today: gateway connect, identify, heartbeats on Discord's
 //// interval, resume after a disconnect, reconnect with backoff, typed
 //// events. REST runs over gleam_httpc with rate limits learned from
-//// response headers and 429 bodies — no hardcoded bucket table.
+//// response headers and 429 bodies. No hardcoded bucket table.
 ////
 //// Not here yet:
 ////
@@ -162,7 +162,7 @@ pub type ValidatedConfig {
 }
 
 /// Validation errors before any connection is attempted: empty or
-/// malformed tokens. Privileged intents are reported, not rejected —
+/// malformed tokens. Privileged intents are reported, not rejected.
 /// Discord enforces those at Identify with close code 4014.
 pub fn validate(config: Config) -> Result(ValidatedConfig, TadpoleError) {
   case validate_token(config.token) {
