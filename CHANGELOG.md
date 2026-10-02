@@ -43,6 +43,10 @@ library did not do yet.
   valid timestamps, constructs snowflakes, and asserts roundtrip
   fidelity plus monotonic ordering. ~20 deterministic cases, no
   external property-testing dependency. (#29)
+- identify pacing's docs said the function returns a delay between two
+  IDENTIFYs, and pointed readers at `identify_delay_ms`, which does not
+  exist. It returns the time the whole fleet takes to come up, which the
+  docs now say (tadpole/gateway/identify_gate).
 
 ## 2026.2.0 - first-swim (published 2026-09-10)
 

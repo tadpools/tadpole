@@ -8,8 +8,8 @@
 ////
 //// ## When you reach for this
 ////
-//// When you build a multi-shard fleet. Call `identify_delay_ms` to
-//// get the wait between consecutive IDENTIFYs. Not wired into
+//// When you build a multi-shard fleet. Call `recommended_delay_ms` for
+//// how long a fleet of `shard_count` takes to come up. Not wired into
 //// anything yet; [`tadpole/bot`](../bot.html) runs one shard, which
 //// never needs pacing.
 ////
@@ -20,11 +20,13 @@
 
 const identify_interval_ms = 5000
 
-/// Milliseconds to wait between IDENTIFYs when starting `shard_count`
-/// shards from one process, assuming the worst case of a single guild
-/// bucket. Large bots (max_concurrency > 1) can safely go faster once
-/// /gateway/bot is wired up; small fleets cannot go faster than one
-/// identify per 5 seconds at all.
+/// Milliseconds to identify a fleet of `shard_count` shards one at a
+/// time, assuming the worst case of a single guild bucket. Despite the
+/// name, this is the total for the whole fleet rather than a delay
+/// between two IDENTIFYs, which is 5000ms whatever the count. Large bots
+/// (max_concurrency > 1) can safely go faster once /gateway/bot is
+/// wired up; small fleets cannot go faster than one identify per 5
+/// seconds at all.
 pub fn recommended_delay_ms(shard_count: Int) -> Int {
   case shard_count < 1 {
     True -> identify_interval_ms
