@@ -19,6 +19,7 @@ import tadpole/error/render
 import tadpole/gateway/events
 import tadpole/gateway/shard
 import tadpole/rest
+import tadpole/rest/endpoints
 import tadpole/rest/execute.{type Transport}
 import tadpole/types/ids
 
@@ -41,6 +42,10 @@ const channel = "742300000000000001"
 const message = "124400000000000009"
 
 const message_payload = "{\"id\":\"124400000000000009\",\"channel_id\":\"742300000000000001\",\"author\":{\"id\":\"900000000000000125\",\"username\":\"lilypad_bot\"},\"content\":\"quack\",\"timestamp\":\"2026-09-07T18:00:00.000000+00:00\",\"type\":0}"
+
+const channel_payload = "{\"id\":\"742300000000000001\",\"type\":0,\"name\":\"general\",\"guild_id\":\"742300000000000002\",\"topic\":\"General chat\"}"
+
+const history_payload = "[" <> message_payload <> "]"
 
 fn no_op(_bot: bot.Bot, _event: events.Event) -> Nil {
   Nil
@@ -163,6 +168,59 @@ pub fn send_message_passes_rest_errors_through_test() {
 
   error.route_to_string(route)
   |> should.equal("POST /channels/" <> channel <> "/messages")
+}
+
+// the read helpers delegate over the bot's own transport, the same as
+// the write helpers already did
+
+pub fn get_channel_delegates_over_the_bot_transport_test() {
+  reset_recorder()
+
+  let assert Ok(ch) =
+    bot.get_channel(
+      hand_built_bot(transport_ok(channel_payload)),
+      channel_id(channel),
+    )
+
+  let assert [sent_request] = recorded_requests()
+  sent_request.method |> should.equal(http.Get)
+  sent_request.path |> should.equal("/api/v10/channels/" <> channel)
+  ch.name |> should.equal(Some("general"))
+}
+
+pub fn get_message_delegates_over_the_bot_transport_test() {
+  reset_recorder()
+
+  let assert Ok(msg) =
+    bot.get_message(
+      hand_built_bot(transport_ok(message_payload)),
+      channel_id(channel),
+      message_id(message),
+    )
+
+  let assert [sent_request] = recorded_requests()
+  sent_request.path
+  |> should.equal("/api/v10/channels/" <> channel <> "/messages/" <> message)
+  msg.content |> should.equal("quack")
+}
+
+pub fn get_messages_delegates_with_the_query_test() {
+  reset_recorder()
+
+  let assert Ok(page) =
+    bot.get_messages(
+      hand_built_bot(transport_ok(history_payload)),
+      channel_id(channel),
+      endpoints.Latest(25),
+    )
+
+  let assert [sent_request] = recorded_requests()
+  sent_request.path
+  |> should.equal("/api/v10/channels/" <> channel <> "/messages")
+  sent_request.query |> should.equal(Some("limit=25"))
+
+  let assert [only] = page.messages
+  only.content |> should.equal("quack")
 }
 
 // stop

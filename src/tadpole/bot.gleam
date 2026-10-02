@@ -1,12 +1,12 @@
 //// The beginner-facing runner: one config, one handler, one shard.
 //// `start` validates the config, opens the gateway, and hands back a Bot
 //// whose events arrive at your handler one at a time, in arrival order.
-//// The same Bot answers: `send_message` and `reply` post messages over
-//// the bot's REST client, `edit_message` and `delete_message` modify or
-//// remove them, and `stop` closes the gateway. Multi-shard
-//// fleets, handler supervision, and a stop that ends the program are
-//// later work. A handler crash takes the whole bot down, which beats a
-//// silently dead bot.
+//// The same Bot answers REST calls over its own transport:
+//// `send_message`, `reply`, `get_channel`, `get_message`, `get_messages`,
+//// `edit_message`, `delete_message`, and `stop` closes the gateway.
+//// Multi-shard fleets, handler supervision, and a stop that ends the
+//// program are later work. A handler crash takes the whole bot down,
+//// which beats a silently dead bot.
 //// Stability: Experimental.
 ////
 //// New here? [`tadpole/guide`](guide.html) walks from an empty
@@ -45,7 +45,8 @@
 ////
 //// `send_message` and `reply` fail with `RestStatus` (any non-2xx,
 //// where status 0 means no HTTP response happened at all) or with
-//// `RateLimited` once 429 retries run out. `stop` never fails.
+//// `RateLimited` once 429 retries run out. Every REST helper on Bot
+//// fails that way, `get_*` included. `stop` never fails.
 ////
 //// ## Lifecycle notices
 ////
@@ -77,9 +78,12 @@
 ////   handler delays everything behind it. In exchange, handler state
 ////   needs no locks. Nothing else ever touches it.
 //// - A `Bot` is a plain record, safe to pass to other processes or send
-////   in messages. `send_message`, `reply`, and `stop` may be called from
-////   any process; each REST call is independent and blocks its calling
+////   in messages. `send_message`, `reply`, the `get_*` helpers,
+////   `edit_message`, `delete_message`, and `stop` may be called from any
+////   process; each REST call is independent and blocks its calling
 ////   process for the round trip (plus retries and rate-limit sleeps).
+////   Every one of them runs over the bot's own transport, which is what
+////   makes a hand-built `Bot` in a test behave the same as a real one.
 //// - The dispatcher owns the event and lifecycle subjects and is the
 ////   only process that can receive on them. Everyone else is send-only.
 ////
@@ -142,7 +146,7 @@
 ////
 //// - [`tadpole`](../tadpole.html) build and validate the config
 //// - [`tadpole/gateway/events`](gateway/events.html) what the handler receives
-//// - [`tadpole/rest/endpoints`](rest/endpoints.html) REST calls beyond the two helpers
+//// - [`tadpole/rest/endpoints`](rest/endpoints.html) the REST calls, and the `MessageQuery` behind `get_messages`
 //// - [`tadpole/error/render`](error/render.html) errors to readable text
 
 import gleam/erlang/process.{type Subject}
@@ -155,6 +159,7 @@ import tadpole/gateway
 import tadpole/gateway/events.{type Event}
 import tadpole/gateway/shard
 import tadpole/intent
+import tadpole/model/channel.{type Channel}
 import tadpole/model/message.{type Message}
 import tadpole/rest.{type RestClient}
 import tadpole/rest/endpoints
@@ -311,6 +316,49 @@ pub fn delete_message(
   message_id: MessageId,
 ) -> Result(Nil, TadpoleError) {
   endpoints.delete_message_with(bot.rest, bot.transport, channel_id, message_id)
+}
+
+/// GET /channels/{channel_id}, fetch the channel a bot is posting into.
+///
+/// Goes over the bot's own transport, like every other helper here.
+/// Fails with `RestStatus` on non-2xx: 403 means the bot cannot view
+/// the channel, 404 means the id is wrong or the channel is gone.
+pub fn get_channel(
+  bot: Bot,
+  channel_id: ChannelId,
+) -> Result(Channel, TadpoleError) {
+  endpoints.get_channel_with(bot.rest, bot.transport, channel_id)
+}
+
+/// GET /channels/{channel_id}/messages/{message_id}, fetch one message.
+///
+/// Fails with `RestStatus` on non-2xx: 403 means the bot lacks Read
+/// Message History, 404 means the message or channel id is wrong, or
+/// the message was deleted.
+pub fn get_message(
+  bot: Bot,
+  channel_id: ChannelId,
+  message_id: MessageId,
+) -> Result(Message, TadpoleError) {
+  endpoints.get_message_with(bot.rest, bot.transport, channel_id, message_id)
+}
+
+/// GET /channels/{channel_id}/messages, one page of a channel's history.
+///
+/// Returns `MessagePage`, whose `messages` are newest first and whose
+/// `oldest` is the cursor for the next page back. See
+/// [`tadpole/rest/endpoints`](rest/endpoints.html)'s `MessageQuery` for
+/// the anchor variants and the limit bounds.
+///
+/// A bot without Read Message History gets an empty page rather than a
+/// 403, so an empty result covers both the end of the channel and a
+/// missing permission.
+pub fn get_messages(
+  bot: Bot,
+  channel_id: ChannelId,
+  query: endpoints.MessageQuery,
+) -> Result(endpoints.MessagePage, TadpoleError) {
+  endpoints.get_messages_with(bot.rest, bot.transport, channel_id, query)
 }
 
 /// Close the gateway: sends the shard actor its Stop message.

@@ -416,8 +416,17 @@ fn build_http_request(
     host: "discord.com",
     port: option.None,
     path: api_prefix <> request.path,
-    query: option.None,
+    query: query_param(request.query),
   )
+}
+
+/// The query string for the request, or None when it has no parameters.
+/// A bare `?` on the wire is not something any Discord route wants.
+fn query_param(query: List(#(String, String))) -> Option(String) {
+  case rest.query_string(query) {
+    "" -> None
+    encoded -> Some(encoded)
+  }
 }
 
 fn to_http_method(method: rest.Method) -> http.Method {

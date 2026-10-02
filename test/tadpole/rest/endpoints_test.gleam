@@ -6,7 +6,8 @@
 import gleam/http
 import gleam/http/request.{type Request}
 import gleam/http/response
-import gleam/option.{Some}
+import gleam/option.{None, Some}
+import gleam/string
 import gleeunit/should
 import tadpole/error
 import tadpole/rest
@@ -47,6 +48,213 @@ const message_payload = "{\"id\":\"124400000000000009\",\"channel_id\":\"7423000
 const user_payload = "{\"id\":\"900000000000000123\",\"username\":\"lilypad_bot\",\"global_name\":\"Lilypad\",\"avatar\":null,\"bot\":true}"
 
 const channel_payload = "{\"id\":\"742300000000000001\",\"type\":0,\"name\":\"general\",\"guild_id\":\"742300000000000002\",\"topic\":\"General chat\"}"
+
+// Discord returns history newest first, so the array below reads
+// backwards in time: 900...126 is the newer of the two.
+
+const older_message = "{\"id\":\"124400000000000009\",\"channel_id\":\"742300000000000001\",\"author\":{\"id\":\"900000000000000125\",\"username\":\"lilypad_bot\"},\"content\":\"older\",\"timestamp\":\"2026-09-07T17:00:00.000000+00:00\",\"type\":0}"
+
+const newer_message = "{\"id\":\"124400000000000010\",\"channel_id\":\"742300000000000001\",\"author\":{\"id\":\"900000000000000125\",\"username\":\"lilypad_bot\"},\"content\":\"newer\",\"timestamp\":\"2026-09-07T18:00:00.000000+00:00\",\"type\":0}"
+
+const history_payload = "[" <> newer_message <> "," <> older_message <> "]"
+
+// GET /channels/{id}/messages
+
+pub fn get_messages_latest_sends_limit_only_test() {
+  reset_recorder()
+
+  let assert Ok(_) =
+    endpoints.get_messages_with(
+      client(),
+      transport("[]"),
+      channel_id(channel),
+      endpoints.Latest(50),
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.method |> should.equal(http.Get)
+  sent.path |> should.equal("/api/v10/channels/" <> channel <> "/messages")
+  sent.query |> should.equal(Some("limit=50"))
+}
+
+pub fn get_messages_before_sends_the_anchor_test() {
+  reset_recorder()
+
+  let assert Ok(_) =
+    endpoints.get_messages_with(
+      client(),
+      transport("[]"),
+      channel_id(channel),
+      endpoints.Before(message_id(message), 25),
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.query |> should.equal(Some("before=" <> message <> "&limit=25"))
+}
+
+pub fn get_messages_after_sends_the_anchor_test() {
+  reset_recorder()
+
+  let assert Ok(_) =
+    endpoints.get_messages_with(
+      client(),
+      transport("[]"),
+      channel_id(channel),
+      endpoints.After(message_id(message), 25),
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.query |> should.equal(Some("after=" <> message <> "&limit=25"))
+}
+
+pub fn get_messages_around_sends_the_anchor_test() {
+  reset_recorder()
+
+  let assert Ok(_) =
+    endpoints.get_messages_with(
+      client(),
+      transport("[]"),
+      channel_id(channel),
+      endpoints.Around(message_id(message), 5),
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.query |> should.equal(Some("around=" <> message <> "&limit=5"))
+}
+
+pub fn get_messages_clamps_the_limit_to_discords_range_test() {
+  // The docs put limit at 1-100 and answer 400 outside that, so an
+  // out-of-range number is clamped rather than forwarded.
+  reset_recorder()
+
+  let assert Ok(_) =
+    endpoints.get_messages_with(
+      client(),
+      transport("[]"),
+      channel_id(channel),
+      endpoints.Latest(0),
+    )
+  let assert [first] = recorded_requests()
+  first.query |> should.equal(Some("limit=1"))
+
+  reset_recorder()
+
+  let assert Ok(_) =
+    endpoints.get_messages_with(
+      client(),
+      transport("[]"),
+      channel_id(channel),
+      endpoints.Latest(-5),
+    )
+  let assert [second] = recorded_requests()
+  second.query |> should.equal(Some("limit=1"))
+
+  reset_recorder()
+
+  let assert Ok(_) =
+    endpoints.get_messages_with(
+      client(),
+      transport("[]"),
+      channel_id(channel),
+      endpoints.Latest(5000),
+    )
+  let assert [third] = recorded_requests()
+  third.query |> should.equal(Some("limit=100"))
+}
+
+pub fn get_messages_keeps_the_query_out_of_the_path_test() {
+  // The rate-limit key is built from the path alone, so a query must
+  // not leak into it or reads that differ only in limit would stop
+  // sharing a bucket.
+  reset_recorder()
+
+  let assert Ok(_) =
+    endpoints.get_messages_with(
+      client(),
+      transport("[]"),
+      channel_id(channel),
+      endpoints.Before(message_id(message), 25),
+    )
+
+  let assert [sent] = recorded_requests()
+  { string.contains(sent.path, "?") } |> should.be_false
+  { string.contains(sent.path, "limit") } |> should.be_false
+}
+
+pub fn get_messages_returns_discords_order_with_the_oldest_as_cursor_test() {
+  reset_recorder()
+
+  let assert Ok(page) =
+    endpoints.get_messages_with(
+      client(),
+      transport(history_payload),
+      channel_id(channel),
+      endpoints.Latest(2),
+    )
+
+  // Discord sends newest first, and the page keeps that order rather
+  // than reversing it behind the caller's back.
+  let assert [first, second] = page.messages
+  first.content |> should.equal("newer")
+  second.content |> should.equal("older")
+
+  // The cursor for the next page back is the oldest, the last element.
+  let assert Ok(oldest) = ids.message_id("124400000000000009")
+  page.oldest |> should.equal(Some(oldest))
+}
+
+pub fn get_messages_empty_array_is_not_an_error_test() {
+  // Discord answers 200 with [] when the bot lacks Read Message
+  // History, so an empty page is a normal result, not a failure.
+  reset_recorder()
+
+  let assert Ok(page) =
+    endpoints.get_messages_with(
+      client(),
+      transport("[]"),
+      channel_id(channel),
+      endpoints.Latest(50),
+    )
+
+  page.messages |> should.equal([])
+  page.oldest |> should.equal(None)
+}
+
+pub fn get_messages_forbidden_maps_to_rest_status_test() {
+  reset_recorder()
+
+  let assert Error(error.RestStatus(route, 403, _, _)) =
+    endpoints.get_messages_with(
+      client(),
+      fn(request) {
+        record_request(request)
+        Ok(response.Response(status: 403, headers: [], body: "{}"))
+      },
+      channel_id(channel),
+      endpoints.Latest(50),
+    )
+
+  error.route_to_string(route)
+  |> should.equal("GET /channels/" <> channel <> "/messages")
+}
+
+pub fn get_messages_non_array_body_maps_to_decode_failed_test() {
+  reset_recorder()
+
+  let assert Error(error.DecodeFailed(_, path, _, _)) =
+    endpoints.get_messages_with(
+      client(),
+      transport("{\"not\":\"an array\"}"),
+      channel_id(channel),
+      endpoints.Latest(50),
+    )
+
+  path |> should.equal("$")
+}
+
+pub fn get_messages_default_limit_is_discords_documented_default_test() {
+  endpoints.default_history_limit |> should.equal(50)
+}
 
 // GET /users/@me
 

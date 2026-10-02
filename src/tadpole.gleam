@@ -44,7 +44,7 @@
 //// | [`tadpole/error`](tadpole/error.html) | every failure as a typed value | beginner |
 //// | [`tadpole/error/render`](tadpole/error/render.html) | errors to human text; token redacted everywhere | beginner |
 //// | [`tadpole/types/ids`](tadpole/types/ids.html) | opaque IDs, so a UserId cannot go where a GuildId goes | beginner |
-//// | [`tadpole/rest/endpoints`](tadpole/rest/endpoints.html) | GET /users/@me, post a message, reply | beginner |
+//// | [`tadpole/rest/endpoints`](tadpole/rest/endpoints.html) | users, channels, messages: read history, send, reply, edit, delete | beginner |
 //// | [`tadpole/model/user`](tadpole/model/user.html) | the user object | beginner |
 //// | [`tadpole/model/message`](tadpole/model/message.html) | the message object and MESSAGE_UPDATE's partial form | beginner |
 //// | [`tadpole/model/guild`](tadpole/model/guild.html) | the guild object and the unavailable stub | beginner |
