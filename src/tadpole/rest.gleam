@@ -10,6 +10,15 @@
 //// [`tadpole/rest/endpoints`](rest/endpoints.html) wraps the whole
 //// round-trip with typed decoders.
 ////
+//// ## Query parameters
+////
+//// `with_query` adds one. They live on their own field rather than being
+//// pasted into the path, because Discord buckets by route and the query
+//// string is not part of the route: the rate-limit key is built from
+//// `path` alone, so reads that differ only in `limit` share a bucket.
+//// `query_string` renders the list with both names and values
+//// percent-encoded.
+////
 //// ## Headers the module parses
 ////
 //// Every response header Discord may send is parsed into structured
@@ -23,6 +32,7 @@ import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import gleam/uri
 
 pub type Method {
   GET
@@ -63,6 +73,11 @@ pub type RestRequest {
   RestRequest(
     method: Method,
     path: String,
+    /// Query parameters, kept apart from `path` on purpose: Discord
+    /// buckets by route, and the query string is not part of the route.
+    /// rate_limit.route_key sees `path` alone, so a read with
+    /// `?limit=50` and the same read with `?limit=100` share one bucket.
+    query: List(#(String, String)),
     headers: List(#(String, String)),
     body: Option(String),
     audit_log_reason: Option(String),
@@ -74,6 +89,7 @@ pub fn get(path: String) -> RestRequest {
   RestRequest(
     method: GET,
     path: path,
+    query: [],
     headers: [],
     body: None,
     audit_log_reason: None,
@@ -85,6 +101,7 @@ pub fn post(path: String, body: String) -> RestRequest {
   RestRequest(
     method: POST,
     path: path,
+    query: [],
     headers: [],
     body: Some(body),
     audit_log_reason: None,
@@ -96,6 +113,7 @@ pub fn put(path: String, body: String) -> RestRequest {
   RestRequest(
     method: PUT,
     path: path,
+    query: [],
     headers: [],
     body: Some(body),
     audit_log_reason: None,
@@ -107,6 +125,7 @@ pub fn patch(path: String, body: String) -> RestRequest {
   RestRequest(
     method: PATCH,
     path: path,
+    query: [],
     headers: [],
     body: Some(body),
     audit_log_reason: None,
@@ -118,10 +137,40 @@ pub fn delete(path: String) -> RestRequest {
   RestRequest(
     method: DELETE,
     path: path,
+    query: [],
     headers: [],
     body: None,
     audit_log_reason: None,
   )
+}
+
+/// Add one query parameter. Parameters are prepended, so a later
+/// `with_query` for the same name comes first in the encoded string.
+/// Values are percent-encoded when the request is sent, so callers pass
+/// raw text.
+pub fn with_query(
+  request: RestRequest,
+  name: String,
+  value: String,
+) -> RestRequest {
+  RestRequest(..request, query: [#(name, value), ..request.query])
+}
+
+/// Render a query list as the string that goes after `?`, both names and
+/// values percent-encoded, in list order, joined with `&`. An empty list
+/// renders as the empty string, which the caller turns into no query at
+/// all rather than a bare `?`.
+///
+/// Discord's own documented parameters are all plain ASCII, so encoding
+/// is invisible for them. It matters for values that arrive as user
+/// text, where an unencoded space or ampersand would change the
+/// meaning of the whole query.
+pub fn query_string(query: List(#(String, String))) -> String {
+  query
+  |> list.map(fn(pair) {
+    uri.percent_encode(pair.0) <> "=" <> uri.percent_encode(pair.1)
+  })
+  |> string.join("&")
 }
 
 /// Add a header to the request. Headers are prepended; later `with_header`

@@ -9,6 +9,59 @@ pub fn get_request_defaults_test() {
   req.method |> should.equal(rest.GET)
   req.path |> should.equal("/users/@me")
   req.body |> should.equal(None)
+  req.query |> should.equal([])
+}
+
+// query parameters
+
+pub fn no_query_params_by_default_test() {
+  rest.get("/users/@me").query |> should.equal([])
+  rest.post("/x", "{}").query |> should.equal([])
+  rest.put("/x", "{}").query |> should.equal([])
+  rest.patch("/x", "{}").query |> should.equal([])
+  rest.delete("/x").query |> should.equal([])
+}
+
+pub fn with_query_prepends_test() {
+  let req =
+    rest.get("/channels/1/messages")
+    |> rest.with_query("limit", "50")
+
+  req.query |> should.equal([#("limit", "50")])
+}
+
+pub fn query_string_empty_list_test() {
+  rest.query_string([]) |> should.equal("")
+}
+
+pub fn query_string_single_pair_test() {
+  rest.query_string([#("limit", "50")]) |> should.equal("limit=50")
+}
+
+pub fn query_string_joins_with_ampersand_in_order_test() {
+  rest.query_string([#("before", "124400000000000009"), #("limit", "50")])
+  |> should.equal("before=124400000000000009&limit=50")
+}
+
+pub fn query_string_encodes_spaces_in_values_test() {
+  // An unencoded space would reach Discord as the raw character and the
+  // value would not survive the trip intact.
+  rest.query_string([#("reason", "spam removal")])
+  |> should.equal("reason=spam%20removal")
+}
+
+pub fn query_string_encodes_separators_so_a_value_cannot_change_the_query_test() {
+  // The case that makes encoding load-bearing rather than decorative:
+  // an unencoded & or = inside one value would split into extra params.
+  rest.query_string([#("after", "a&limit=999")])
+  |> should.equal("after=a%26limit%3D999")
+}
+
+pub fn query_string_leaves_plain_ascii_alone_test() {
+  // Discord's own documented params are plain ASCII, so encoding must
+  // not disturb them.
+  rest.query_string([#("before", "124400000000000009"), #("limit", "100")])
+  |> should.equal("before=124400000000000009&limit=100")
 }
 
 pub fn post_request_carries_body_test() {

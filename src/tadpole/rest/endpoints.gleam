@@ -19,9 +19,13 @@
 ////   message_reference, so Discord's client shows the original above
 ////   the reply and pings its author. The returned message's
 ////   `message_type` is 19 (REPLY).
+//// - `get_messages`: read a channel's history. `MessageQuery` picks
+////   the anchor and the limit; `MessagePage` carries the cursor for the
+////   next page back.
+//// - `get_channel` / `get_message`: fetch one object by id.
 ////
 //// Any other route: drop to [`tadpole/rest/execute`](execute.html)
-//// with `rest.post`/`rest.get` and decode the payload yourself.
+//// with `rest.get`/`rest.post` and decode the payload yourself.
 ////
 //// ## Routes
 ////
@@ -30,6 +34,7 @@
 //// | `get_current_user` | GET /users/@me | `User` |
 //// | `get_channel` | GET /channels/{channel_id} | `Channel` |
 //// | `get_message` | GET /channels/{channel_id}/messages/{message_id} | `Message` |
+//// | `get_messages` | GET /channels/{channel_id}/messages | `MessagePage` |
 //// | `send_message` | POST /channels/{channel_id}/messages | `Message` |
 //// | `reply` | POST /channels/{channel_id}/messages, body carries message_reference | `Message` |
 //// | `edit_message` | PATCH /channels/{channel_id}/messages/{message_id} | `Message` |
@@ -58,6 +63,12 @@
 //// message posts, the tail is gone, no error returns. Check
 //// `string.length` yourself if the length matters.
 ////
+//// Two Discord behaviours look like success and are worth stating here,
+//// because both are silent. A channel read without Read Message
+//// History answers 200 with an empty array rather than 403. A `limit`
+//// outside 1-100 is a 400 from Discord, so this module clamps instead
+//// of forwarding it.
+////
 //// ## Concurrency
 ////
 //// Each call is independent and blocks its process for the round trip
@@ -72,14 +83,159 @@
 //// - [`tadpole/rest/execute`](execute.html) the layer below, and the session API
 //// - [`tadpole/model/message`](../model/message.html) what comes back
 
+import gleam/dynamic/decode as d
+import gleam/int
 import gleam/json
+import gleam/list
+import gleam/option.{type Option, None}
+import gleam/result
 import tadpole/error.{type TadpoleError}
 import tadpole/model/channel.{type Channel}
+import tadpole/model/decode
 import tadpole/model/message.{type Message}
 import tadpole/model/user.{type User}
 import tadpole/rest
 import tadpole/rest/execute.{type Transport}
 import tadpole/types/ids.{type ChannelId, type MessageId}
+
+/// Which slice of a channel's history to read.
+///
+/// Discord's `before`, `after` and `around` are mutually exclusive, so
+/// this is one variant rather than three independent options. Two
+/// anchors cannot be built here, so they cannot be sent, and Discord
+/// never has to answer with a 400 for a mistake the type system already
+/// refused to represent.
+pub type MessageQuery {
+  /// The newest messages in the channel, no anchor. This is Discord's
+  /// own default and the common case: "what was just said here".
+  Latest(limit: Int)
+  /// Messages older than `before`, which is how you walk backwards
+  /// through history.
+  Before(before: MessageId, limit: Int)
+  /// Messages newer than `after`.
+  After(after: MessageId, limit: Int)
+  /// Messages on both sides of `around`.
+  Around(around: MessageId, limit: Int)
+}
+
+/// One page of history.
+///
+/// `oldest` is a fact about this page, not a promise about the channel:
+/// it is the id of the oldest message Discord returned, which is what
+/// the next `MessageQuery.Before` needs. Discord decides where a page
+/// ends, so a page shorter than its limit is not by itself the end of
+/// history. Keep going while pages come back non-empty.
+pub type MessagePage {
+  MessagePage(
+    /// Exactly as Discord returns them: **newest first**. Discord does
+    /// not document an oldest-first option, so a `MessagePage` read as
+    /// a list shows the most recent message first.
+    messages: List(Message),
+    /// The id of the oldest message in `messages`, None when the page
+    /// came back empty.
+    oldest: Option(MessageId),
+  )
+}
+
+/// Discord's documented bounds on `limit`. Anything outside is clamped
+/// rather than refused, the same way `first_heartbeat_delay_ms` clamps
+/// its jitter. Sending an out-of-range limit is a 400 from Discord, and
+/// a bot that clamped its own read is a bot that still works.
+const min_history_limit = 1
+
+const max_history_limit = 100
+
+/// Discord's documented default, used when a caller wants "whatever is
+/// usual" rather than a number.
+pub const default_history_limit = 50
+
+/// GET /channels/{channel_id}/messages, one page of a channel's history.
+///
+/// Fails with RestStatus on non-2xx. 403 means the bot cannot view the
+/// channel. 404 means the channel id is wrong.
+///
+/// One case does not fail and is worth knowing: a bot without Read
+/// Message History gets a 200 and an **empty array**, not a 403. An
+/// empty page therefore means "nothing visible to you here", which
+/// covers both the end of the channel and a missing permission.
+pub fn get_messages(
+  client: rest.RestClient,
+  channel_id: ChannelId,
+  query: MessageQuery,
+) -> Result(MessagePage, TadpoleError) {
+  get_messages_with(
+    client,
+    execute.httpc_transport(client.timeout_ms),
+    channel_id,
+    query,
+  )
+}
+
+/// `get_messages` over an injected transport.
+pub fn get_messages_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  query: MessageQuery,
+) -> Result(MessagePage, TadpoleError) {
+  let request =
+    rest.get("/channels/" <> ids.channel_to_string(channel_id) <> "/messages")
+    |> with_history_query(query)
+  case execute.send(client, request, transport) {
+    Ok(response) ->
+      decode.from_json(None, response.body, d.list(message.decoder()))
+      |> result.map(page)
+    Error(e) -> Error(e)
+  }
+}
+
+/// The query parameters for one variant, in the order they are encoded:
+/// the anchor first, then the limit. RestRequest is a public record, so
+/// this sets the field directly instead of folding `with_query` over a
+/// list and reasoning about prepend order.
+fn with_history_query(
+  request: rest.RestRequest,
+  query: MessageQuery,
+) -> rest.RestRequest {
+  rest.RestRequest(..request, query: history_params(query))
+}
+
+fn history_params(query: MessageQuery) -> List(#(String, String)) {
+  case query {
+    Latest(limit) -> [limit_param(limit)]
+    Before(before, limit) -> [
+      anchor_param("before", before),
+      limit_param(limit),
+    ]
+    After(after, limit) -> [anchor_param("after", after), limit_param(limit)]
+    Around(around, limit) -> [
+      anchor_param("around", around),
+      limit_param(limit),
+    ]
+  }
+}
+
+fn anchor_param(name: String, id: MessageId) -> #(String, String) {
+  #(name, ids.message_to_string(id))
+}
+
+fn limit_param(limit: Int) -> #(String, String) {
+  #("limit", int.to_string(clamp_limit(limit)))
+}
+
+fn clamp_limit(limit: Int) -> Int {
+  int.min(max_history_limit, int.max(min_history_limit, limit))
+}
+
+/// Newest first, so the cursor is the last element.
+fn page(messages: List(Message)) -> MessagePage {
+  let oldest =
+    messages
+    |> list.last
+    |> option.from_result
+    |> option.map(fn(message) { message.id })
+  MessagePage(messages: messages, oldest: oldest)
+}
 
 /// GET /users/@me, the bot's own user object.
 ///

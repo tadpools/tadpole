@@ -41,11 +41,11 @@ is Gleam and OTP first, and the API is shaped by that choice:
   would (tadpole/bot). When one config and one handler stop being
   enough, the layer below is already public.
 
-Also included: endpoint bindings for `GET /users/@me`, sending a
-message, and replying (tadpole/rest/endpoints); model objects whose
-decoders report where a payload stopped matching (tadpole/model); and
-config validation that redacts the token in its own describe output
-(tadpole.describe_config).
+Also included: endpoint bindings for `GET /users/@me`, fetching a channel or
+a single message, reading a channel's history with a cursor for paging
+(`tadpole/rest/endpoints`); model objects whose decoders report where a
+payload stopped matching (`tadpole/model`); and config validation that
+redacts the token in its own describe output (`tadpole.describe_config`).
 
 A first bot and a sharded production bot should be the same framework
 at different sizes: growth is additive, and nothing you wrote at

@@ -43,6 +43,30 @@ library did not do yet.
   valid timestamps, constructs snowflakes, and asserts roundtrip
   fidelity plus monotonic ordering. ~20 deterministic cases, no
   external property-testing dependency. (#29)
+- REST requests can carry query parameters. `RestRequest` grows a `query`
+  field and `rest.with_query` adds one, kept out of `path` on purpose:
+  Discord buckets by route and the query string is not part of the route,
+  so the rate-limit key still comes from `path` alone and reads that
+  differ only in `limit` share a bucket. Names and values are
+  percent-encoded when the request is built (tadpole/rest).
+- `endpoints.get_messages` reads a channel's history, one page at a time.
+  `MessageQuery` is a sum type (`Latest`, `Before`, `After`, `Around`)
+  because Discord's before/after/around are mutually exclusive, so
+  sending two is not representable rather than a 400 waiting to happen.
+  `MessagePage` carries the messages newest-first as Discord sends them,
+  plus `oldest`, the id the next `Before` page needs. `limit` is clamped
+  to the documented 1-100 rather than forwarded, since out of range is a
+  400. A bot without Read Message History gets a 200 and an empty page,
+  not a 403, which the docs now say out loud (tadpole/rest/endpoints).
+- `get_channel`, `get_message` and `get_messages` on `tadpole/bot`, which
+  brings the wrapper level up to what `endpoints` already had. They go
+  over the bot's own transport like every other helper there. Reaching
+  for `endpoints.get_channel(bot.rest, id)` instead silently built a
+  fresh httpc transport and ignored the bot's, so a Bot built with an
+  injected transport would hit the real network for that one call and
+  not for the others.
+- the README and the module directory table no longer describe
+  `rest/endpoints` as three routes.
 
 ## 2026.2.0 - first-swim (published 2026-09-10)
 
