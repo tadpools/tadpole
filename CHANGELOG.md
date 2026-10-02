@@ -76,6 +76,20 @@ library did not do yet.
   fresh httpc transport and ignored the bot's, so a Bot built with an
   injected transport would hit the real network for that one call and
   not for the others.
+- reactions: `add_reaction`, `remove_own_reaction` and `get_reaction_users`
+  on `rest/endpoints` and on `bot`. The emoji is a new
+  `tadpole/model/emoji` `Emoji`, either `Unicode` characters or a
+  `Custom(name, id)` pair, because Discord puts the emoji in the path and
+  answers `10014: Unknown Emoji` when the segment is not URL encoded.
+  That error names the emoji rather than the encoding, so a wrong one
+  reads like the wrong emoji, which is reason enough for the wrapper to
+  own the encoding rather than the caller. `to_text` gives the unencoded
+  form back for logs and command parsing. `EmojiId` joins the other
+  opaque ids, so a typo'd custom emoji id fails at construction instead
+  of as a 404. `get_reaction_users` returns `ReactionUsers`, shaped like
+  `MessagePage` with `next_after`, because Discord pages that route the
+  same way it pages history. Note "nobody reacted with that emoji" is a
+  404 from Discord, not an empty list.
 - the README and the module directory table no longer describe
   `rest/endpoints` as three routes. (#38)
 

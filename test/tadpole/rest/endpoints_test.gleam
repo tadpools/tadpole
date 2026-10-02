@@ -10,6 +10,7 @@ import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
 import tadpole/error
+import tadpole/model/emoji
 import tadpole/rest
 import tadpole/rest/endpoints
 import tadpole/rest/execute.{type Transport}
@@ -37,6 +38,14 @@ fn transport(body: String) -> Transport {
   }
 }
 
+/// The two reaction mutations answer 204 with no body.
+fn no_content_transport() -> Transport {
+  fn(request) {
+    record_request(request)
+    Ok(response.Response(status: 204, headers: [], body: ""))
+  }
+}
+
 // fixtures: invented snowflakes (17-19 digits)
 
 const channel = "742300000000000001"
@@ -57,6 +66,21 @@ const older_message = "{\"id\":\"124400000000000009\",\"channel_id\":\"742300000
 const newer_message = "{\"id\":\"124400000000000010\",\"channel_id\":\"742300000000000001\",\"author\":{\"id\":\"900000000000000125\",\"username\":\"lilypad_bot\"},\"content\":\"newer\",\"timestamp\":\"2026-09-07T18:00:00.000000+00:00\",\"type\":0}"
 
 const history_payload = "[" <> newer_message <> "," <> older_message <> "]"
+
+const reactor_one = "{\"id\":\"900000000000000201\",\"username\":\"quackling\",\"bot\":false}"
+
+const reactor_two = "{\"id\":\"900000000000000202\",\"username\":\"pondweed\",\"bot\":false}"
+
+const reaction_users_payload = "[" <> reactor_one <> "," <> reactor_two <> "]"
+
+fn unicode_emoji() -> emoji.Emoji {
+  emoji.Unicode("\u{1F44D}")
+}
+
+fn custom_emoji() -> emoji.Emoji {
+  let assert Ok(id) = ids.emoji_id("740000000000000001")
+  emoji.Custom(name: "lilypad", id: id)
+}
 
 // GET /channels/{id}/messages
 
@@ -254,6 +278,216 @@ pub fn get_messages_non_array_body_maps_to_decode_failed_test() {
 
 pub fn get_messages_default_limit_is_discords_documented_default_test() {
   endpoints.default_history_limit |> should.equal(50)
+}
+
+// PUT /channels/{id}/messages/{id}/reactions/{emoji}/@me
+
+pub fn add_reaction_puts_an_encoded_unicode_emoji_test() {
+  reset_recorder()
+
+  let assert Ok(Nil) =
+    endpoints.add_reaction_with(
+      client(),
+      no_content_transport(),
+      channel_id(channel),
+      message_id(message),
+      unicode_emoji(),
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.method |> should.equal(http.Put)
+  // %F0%9F%91%8D is \u{1F44D}. Unencoded, Discord answers 10014.
+  sent.path
+  |> should.equal(
+    "/api/v10/channels/"
+    <> channel
+    <> "/messages/"
+    <> message
+    <> "/reactions/%F0%9F%91%8D/@me",
+  )
+}
+
+pub fn add_reaction_puts_a_custom_emoji_as_name_id_test() {
+  reset_recorder()
+
+  let assert Ok(Nil) =
+    endpoints.add_reaction_with(
+      client(),
+      no_content_transport(),
+      channel_id(channel),
+      message_id(message),
+      custom_emoji(),
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.path
+  |> should.equal(
+    "/api/v10/channels/"
+    <> channel
+    <> "/messages/"
+    <> message
+    <> "/reactions/lilypad%3A740000000000000001/@me",
+  )
+}
+
+// DELETE /channels/{id}/messages/{id}/reactions/{emoji}/@me
+
+pub fn remove_own_reaction_deletes_the_encoded_emoji_test() {
+  reset_recorder()
+
+  let assert Ok(Nil) =
+    endpoints.remove_own_reaction_with(
+      client(),
+      no_content_transport(),
+      channel_id(channel),
+      message_id(message),
+      custom_emoji(),
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.method |> should.equal(http.Delete)
+  sent.path
+  |> should.equal(
+    "/api/v10/channels/"
+    <> channel
+    <> "/messages/"
+    <> message
+    <> "/reactions/lilypad%3A740000000000000001/@me",
+  )
+}
+
+// GET /channels/{id}/messages/{id}/reactions/{emoji}
+
+pub fn get_reaction_users_lists_users_with_a_limit_test() {
+  reset_recorder()
+
+  let assert Ok(_) =
+    endpoints.get_reaction_users_with(
+      client(),
+      transport(reaction_users_payload),
+      channel_id(channel),
+      message_id(message),
+      unicode_emoji(),
+      None,
+      25,
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.method |> should.equal(http.Get)
+  sent.path
+  |> should.equal(
+    "/api/v10/channels/"
+    <> channel
+    <> "/messages/"
+    <> message
+    <> "/reactions/%F0%9F%91%8D",
+  )
+  sent.query |> should.equal(Some("limit=25"))
+}
+
+pub fn get_reaction_users_sends_after_when_paging_test() {
+  reset_recorder()
+  let assert Ok(after) = ids.user_id("900000000000000201")
+
+  let assert Ok(_) =
+    endpoints.get_reaction_users_with(
+      client(),
+      transport("[]"),
+      channel_id(channel),
+      message_id(message),
+      unicode_emoji(),
+      Some(after),
+      100,
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.query
+  |> should.equal(Some("after=900000000000000201&limit=100"))
+}
+
+pub fn get_reaction_users_clamps_the_limit_test() {
+  reset_recorder()
+
+  let assert Ok(_) =
+    endpoints.get_reaction_users_with(
+      client(),
+      transport("[]"),
+      channel_id(channel),
+      message_id(message),
+      unicode_emoji(),
+      None,
+      5000,
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.query |> should.equal(Some("limit=100"))
+}
+
+pub fn get_reaction_users_returns_the_last_user_as_the_cursor_test() {
+  reset_recorder()
+
+  let assert Ok(page) =
+    endpoints.get_reaction_users_with(
+      client(),
+      transport(reaction_users_payload),
+      channel_id(channel),
+      message_id(message),
+      unicode_emoji(),
+      None,
+      25,
+    )
+
+  let assert [first, second] = page.users
+  first.username |> should.equal("quackling")
+  second.username |> should.equal("pondweed")
+
+  let assert Ok(after) = ids.user_id("900000000000000202")
+  page.next_after |> should.equal(Some(after))
+}
+
+pub fn get_reaction_users_empty_list_has_no_cursor_test() {
+  reset_recorder()
+
+  let assert Ok(page) =
+    endpoints.get_reaction_users_with(
+      client(),
+      transport("[]"),
+      channel_id(channel),
+      message_id(message),
+      unicode_emoji(),
+      None,
+      25,
+    )
+
+  page.users |> should.equal([])
+  page.next_after |> should.equal(None)
+}
+
+pub fn get_reaction_users_not_found_maps_to_rest_status_test() {
+  // "Nobody has reacted with that emoji" is a 404 from Discord, not an
+  // empty list, so the error path is the common one here.
+  reset_recorder()
+
+  let assert Error(error.RestStatus(route, 404, Some(10_008), _)) =
+    endpoints.get_reaction_users_with(
+      client(),
+      fn(request) {
+        record_request(request)
+        Ok(response.Response(
+          status: 404,
+          headers: [],
+          body: "{\"message\": \"Unknown Message\", \"code\": 10008}",
+        ))
+      },
+      channel_id(channel),
+      message_id(message),
+      unicode_emoji(),
+      None,
+      25,
+    )
+
+  string.contains(error.route_to_string(route), "/reactions/")
+  |> should.be_true
 }
 
 // GET /users/@me

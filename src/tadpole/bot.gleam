@@ -3,6 +3,7 @@
 //// whose events arrive at your handler one at a time, in arrival order.
 //// The same Bot answers REST calls over its own transport:
 //// `send_message`, `reply`, `get_channel`, `get_message`, `get_messages`,
+//// `add_reaction`, `remove_own_reaction`, `get_reaction_users`,
 //// `edit_message`, `delete_message`, and `stop` closes the gateway.
 //// Multi-shard fleets, handler supervision, and a stop that ends the
 //// program are later work. A handler crash takes the whole bot down,
@@ -151,7 +152,7 @@
 
 import gleam/erlang/process.{type Subject}
 import gleam/int
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import logging
 import tadpole
 import tadpole/error.{type TadpoleError}
@@ -160,11 +161,12 @@ import tadpole/gateway/events.{type Event}
 import tadpole/gateway/shard
 import tadpole/intent
 import tadpole/model/channel.{type Channel}
+import tadpole/model/emoji.{type Emoji}
 import tadpole/model/message.{type Message}
 import tadpole/rest.{type RestClient}
 import tadpole/rest/endpoints
 import tadpole/rest/execute.{type Transport}
-import tadpole/types/ids.{type ChannelId, type MessageId}
+import tadpole/types/ids.{type ChannelId, type MessageId, type UserId}
 
 /// The only gateway URL this milestone speaks: gateway v10, JSON frames.
 const gateway_url = "wss://gateway.discord.gg/?v=10&encoding=json"
@@ -359,6 +361,70 @@ pub fn get_messages(
   query: endpoints.MessageQuery,
 ) -> Result(endpoints.MessagePage, TadpoleError) {
   endpoints.get_messages_with(bot.rest, bot.transport, channel_id, query)
+}
+
+/// React as the bot. Returns Nil on success (204).
+///
+/// Reacts twice is not an error, Discord treats the second one as a
+/// no-op. Fails with `RestStatus` on non-2xx: 404 means the message or
+/// the custom emoji is gone, 403 means the bot cannot react there.
+pub fn add_reaction(
+  bot: Bot,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  emoji: Emoji,
+) -> Result(Nil, TadpoleError) {
+  endpoints.add_reaction_with(
+    bot.rest,
+    bot.transport,
+    channel_id,
+    message_id,
+    emoji,
+  )
+}
+
+/// Take back the bot's own reaction. Returns Nil on success (204).
+///
+/// Fails with `RestStatus` on non-2xx: 404 means the message is gone, or
+/// the bot never reacted with that emoji.
+pub fn remove_own_reaction(
+  bot: Bot,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  emoji: Emoji,
+) -> Result(Nil, TadpoleError) {
+  endpoints.remove_own_reaction_with(
+    bot.rest,
+    bot.transport,
+    channel_id,
+    message_id,
+    emoji,
+  )
+}
+
+/// The users who reacted with one emoji, one page at a time.
+///
+/// `next_after` is the cursor for the following page, the same shape
+/// `get_messages` returns. Fails with `RestStatus` on non-2xx, and note
+/// that "nobody has reacted with that emoji" is a 404 rather than an
+/// empty list.
+pub fn get_reaction_users(
+  bot: Bot,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  emoji: Emoji,
+  after: Option(UserId),
+  limit: Int,
+) -> Result(endpoints.ReactionUsers, TadpoleError) {
+  endpoints.get_reaction_users_with(
+    bot.rest,
+    bot.transport,
+    channel_id,
+    message_id,
+    emoji,
+    after,
+    limit,
+  )
 }
 
 /// Close the gateway: sends the shard actor its Stop message.
