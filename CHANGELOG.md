@@ -43,6 +43,13 @@ library did not do yet.
   valid timestamps, constructs snowflakes, and asserts roundtrip
   fidelity plus monotonic ordering. ~20 deterministic cases, no
   external property-testing dependency. (#29)
+- reconnect backoff caps the doubling instead of raising the power
+  first. Returned milliseconds are unchanged for every input, but the
+  old version multiplied out the full exponent before discarding it,
+  one bignum multiply per attempt, on the shard actor's own process
+  (159s to answer 60000 at 1,000,000 attempts). The shard only clears
+  its attempt counter on HELLO, so that count grows while the gateway
+  stays unreachable (tadpole/gateway). (#34)
 
 ## 2026.2.0 - first-swim (published 2026-09-10)
 
