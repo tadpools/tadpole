@@ -9,7 +9,7 @@ import gleam/erlang/process
 import gleam/http
 import gleam/http/request.{type Request}
 import gleam/http/response
-import gleam/option.{Some}
+import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
 import tadpole
@@ -18,6 +18,7 @@ import tadpole/error
 import tadpole/error/render
 import tadpole/gateway/events
 import tadpole/gateway/shard
+import tadpole/model/emoji
 import tadpole/rest
 import tadpole/rest/endpoints
 import tadpole/rest/execute.{type Transport}
@@ -47,6 +48,8 @@ const channel_payload = "{\"id\":\"742300000000000001\",\"type\":0,\"name\":\"ge
 
 const history_payload = "[" <> message_payload <> "]"
 
+const reaction_users_payload = "[{\"id\":\"900000000000000201\",\"username\":\"quackling\",\"bot\":false}]"
+
 fn no_op(_bot: bot.Bot, _event: events.Event) -> Nil {
   Nil
 }
@@ -55,6 +58,14 @@ fn transport_ok(body: String) -> Transport {
   fn(request) {
     record_request(request)
     Ok(response.Response(status: 200, headers: [], body: body))
+  }
+}
+
+/// The reaction mutations answer 204 with no body.
+fn transport_no_content() -> Transport {
+  fn(request) {
+    record_request(request)
+    Ok(response.Response(status: 204, headers: [], body: ""))
   }
 }
 
@@ -221,6 +232,66 @@ pub fn get_messages_delegates_with_the_query_test() {
 
   let assert [only] = page.messages
   only.content |> should.equal("quack")
+}
+
+// reactions
+
+pub fn add_reaction_delegates_over_the_bot_transport_test() {
+  reset_recorder()
+
+  let assert Ok(Nil) =
+    bot.add_reaction(
+      hand_built_bot(transport_no_content()),
+      channel_id(channel),
+      message_id(message),
+      emoji.Unicode("\u{1F44D}"),
+    )
+
+  let assert [sent_request] = recorded_requests()
+  sent_request.method |> should.equal(http.Put)
+  sent_request.path
+  |> should.equal(
+    "/api/v10/channels/"
+    <> channel
+    <> "/messages/"
+    <> message
+    <> "/reactions/%F0%9F%91%8D/@me",
+  )
+}
+
+pub fn remove_own_reaction_delegates_over_the_bot_transport_test() {
+  reset_recorder()
+
+  let assert Ok(Nil) =
+    bot.remove_own_reaction(
+      hand_built_bot(transport_no_content()),
+      channel_id(channel),
+      message_id(message),
+      emoji.Unicode("\u{1F44D}"),
+    )
+
+  let assert [sent_request] = recorded_requests()
+  sent_request.method |> should.equal(http.Delete)
+}
+
+pub fn get_reaction_users_delegates_with_the_query_test() {
+  reset_recorder()
+
+  let assert Ok(page) =
+    bot.get_reaction_users(
+      hand_built_bot(transport_ok(reaction_users_payload)),
+      channel_id(channel),
+      message_id(message),
+      emoji.Unicode("\u{1F44D}"),
+      None,
+      25,
+    )
+
+  let assert [sent_request] = recorded_requests()
+  sent_request.query |> should.equal(Some("limit=25"))
+
+  let assert [first] = page.users
+  first.username |> should.equal("quackling")
 }
 
 // stop

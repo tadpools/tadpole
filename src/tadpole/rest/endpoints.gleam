@@ -23,6 +23,11 @@
 ////   the anchor and the limit; `MessagePage` carries the cursor for the
 ////   next page back.
 //// - `get_channel` / `get_message`: fetch one object by id.
+//// - `add_reaction` / `remove_own_reaction` / `get_reaction_users`:
+////   reactions, over a [`tadpole/model/emoji`](../model/emoji.html)
+////   `Emoji`. The emoji is encoded here, which is not something to leave
+////   to a caller: Discord answers `10014: Unknown Emoji` for an
+////   unencoded one.
 ////
 //// Any other route: drop to [`tadpole/rest/execute`](execute.html)
 //// with `rest.get`/`rest.post` and decode the payload yourself.
@@ -35,6 +40,9 @@
 //// | `get_channel` | GET /channels/{channel_id} | `Channel` |
 //// | `get_message` | GET /channels/{channel_id}/messages/{message_id} | `Message` |
 //// | `get_messages` | GET /channels/{channel_id}/messages | `MessagePage` |
+//// | `add_reaction` | PUT /channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me | `Nil` (204) |
+//// | `remove_own_reaction` | DELETE /channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me | `Nil` (204) |
+//// | `get_reaction_users` | GET /channels/{channel_id}/messages/{message_id}/reactions/{emoji} | `ReactionUsers` |
 //// | `send_message` | POST /channels/{channel_id}/messages | `Message` |
 //// | `reply` | POST /channels/{channel_id}/messages, body carries message_reference | `Message` |
 //// | `edit_message` | PATCH /channels/{channel_id}/messages/{message_id} | `Message` |
@@ -87,16 +95,20 @@ import gleam/dynamic/decode as d
 import gleam/int
 import gleam/json
 import gleam/list
-import gleam/option.{type Option, None}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import tadpole/error.{type TadpoleError}
 import tadpole/model/channel.{type Channel}
 import tadpole/model/decode
+/// Imported as a bare function rather than called as `emoji.something`,
+/// because the route functions all take a parameter named `emoji` and a
+/// local of that name would shadow the module.
+import tadpole/model/emoji.{type Emoji, to_path_segment}
 import tadpole/model/message.{type Message}
 import tadpole/model/user.{type User}
 import tadpole/rest
 import tadpole/rest/execute.{type Transport}
-import tadpole/types/ids.{type ChannelId, type MessageId}
+import tadpole/types/ids.{type ChannelId, type MessageId, type UserId}
 
 /// Which slice of a channel's history to read.
 ///
@@ -235,6 +247,197 @@ fn page(messages: List(Message)) -> MessagePage {
     |> option.from_result
     |> option.map(fn(message) { message.id })
   MessagePage(messages: messages, oldest: oldest)
+}
+
+/// The users who reacted with one emoji, one page at a time.
+///
+/// Shaped like `MessagePage` on purpose. Discord's reaction listing pages
+/// the same way history does, so paging the two looks the same in code
+/// too.
+pub type ReactionUsers {
+  ReactionUsers(
+    /// In the order Discord sends them.
+    users: List(User),
+    /// The id to pass as `after` for the next page. This is a fact about
+    /// the page rather than a promise that more users exist, the same
+    /// wording `MessagePage.oldest` uses and for the same reason.
+    next_after: Option(UserId),
+  )
+}
+
+/// Discord's documented bounds on a reaction listing's `limit`.
+const min_reaction_limit = 1
+
+const max_reaction_limit = 100
+
+/// PUT /channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me,
+/// react as the bot. Returns Nil on success (204).
+///
+/// Fails with RestStatus on non-2xx. 404 means the message is gone, or
+/// the custom emoji does not exist in its guild. 403 means the bot
+/// cannot react there: the docs require Read Message History, plus Add
+/// Reactions when nobody else has reacted with that emoji yet.
+///
+/// Reacting twice is not an error. Discord treats it as a no-op, so this
+/// returns Ok(Nil) both times.
+pub fn add_reaction(
+  client: rest.RestClient,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  emoji: Emoji,
+) -> Result(Nil, TadpoleError) {
+  add_reaction_with(
+    client,
+    execute.httpc_transport(client.timeout_ms),
+    channel_id,
+    message_id,
+    emoji,
+  )
+}
+
+/// `add_reaction` over an injected transport.
+pub fn add_reaction_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  emoji: Emoji,
+) -> Result(Nil, TadpoleError) {
+  let request =
+    rest.put(reaction_path(channel_id, message_id, emoji) <> "/@me", "")
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+/// DELETE /channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me,
+/// take back the bot's own reaction. Returns Nil on success (204).
+///
+/// Fails with RestStatus on non-2xx. 404 means the message is gone, or
+/// the bot has not reacted with that emoji.
+pub fn remove_own_reaction(
+  client: rest.RestClient,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  emoji: Emoji,
+) -> Result(Nil, TadpoleError) {
+  remove_own_reaction_with(
+    client,
+    execute.httpc_transport(client.timeout_ms),
+    channel_id,
+    message_id,
+    emoji,
+  )
+}
+
+/// `remove_own_reaction` over an injected transport.
+pub fn remove_own_reaction_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  emoji: Emoji,
+) -> Result(Nil, TadpoleError) {
+  let request =
+    rest.delete(reaction_path(channel_id, message_id, emoji) <> "/@me")
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+/// GET /channels/{channel_id}/messages/{message_id}/reactions/{emoji}, the
+/// users who reacted with one emoji.
+///
+/// Fails with RestStatus on non-2xx. 404 means the message is gone, or
+/// nobody has reacted with that emoji at all, which is worth knowing
+/// because "nobody reacted" arrives as a 404 rather than an empty list.
+///
+/// `limit` is clamped to the documented 1-100. Discord also takes a
+/// `type` of 0 normal or 1 burst on this route; tadpole sends neither,
+/// so the listing is normal reactions. A burst listing wants its own
+/// function rather than a flag this one ignores.
+pub fn get_reaction_users(
+  client: rest.RestClient,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  emoji: Emoji,
+  after: Option(UserId),
+  limit: Int,
+) -> Result(ReactionUsers, TadpoleError) {
+  get_reaction_users_with(
+    client,
+    execute.httpc_transport(client.timeout_ms),
+    channel_id,
+    message_id,
+    emoji,
+    after,
+    limit,
+  )
+}
+
+/// `get_reaction_users` over an injected transport.
+pub fn get_reaction_users_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  emoji: Emoji,
+  after: Option(UserId),
+  limit: Int,
+) -> Result(ReactionUsers, TadpoleError) {
+  let request =
+    rest.get(reaction_path(channel_id, message_id, emoji))
+    |> fn(request) {
+      rest.RestRequest(..request, query: reaction_params(after, limit))
+    }
+  case execute.send(client, request, transport) {
+    Ok(response) ->
+      decode.from_json(None, response.body, d.list(user.decoder()))
+      |> result.map(reaction_page)
+    Error(e) -> Error(e)
+  }
+}
+
+/// Everything up to but not including the `/@me` the two mutation routes
+/// append. The emoji segment is encoded here, which is the whole reason
+/// `Emoji` is a type rather than a String.
+fn reaction_path(
+  channel_id: ChannelId,
+  message_id: MessageId,
+  emoji: Emoji,
+) -> String {
+  "/channels/"
+  <> ids.channel_to_string(channel_id)
+  <> "/messages/"
+  <> ids.message_to_string(message_id)
+  <> "/reactions/"
+  <> to_path_segment(emoji)
+}
+
+fn reaction_params(
+  after: Option(UserId),
+  limit: Int,
+) -> List(#(String, String)) {
+  let limit_pair = #("limit", int.to_string(clamp_reaction_limit(limit)))
+  case after {
+    Some(user_id) -> [#("after", ids.user_to_string(user_id)), limit_pair]
+    None -> [limit_pair]
+  }
+}
+
+fn clamp_reaction_limit(limit: Int) -> Int {
+  int.min(max_reaction_limit, int.max(min_reaction_limit, limit))
+}
+
+fn reaction_page(users: List(User)) -> ReactionUsers {
+  let next_after =
+    users
+    |> list.last
+    |> option.from_result
+    |> option.map(fn(user) { user.id })
+  ReactionUsers(users: users, next_after: next_after)
 }
 
 /// GET /users/@me, the bot's own user object.

@@ -49,6 +49,7 @@
 //// | [`tadpole/model/message`](tadpole/model/message.html) | the message object and MESSAGE_UPDATE's partial form | beginner |
 //// | [`tadpole/model/guild`](tadpole/model/guild.html) | the guild object and the unavailable stub | beginner |
 //// | [`tadpole/model/channel`](tadpole/model/channel.html) | the channel object, trimmed | beginner |
+//// | [`tadpole/model/emoji`](tadpole/model/emoji.html) | an emoji for reactions, unicode or custom, encoded for the route | beginner |
 //// | [`tadpole/gateway/shard`](tadpole/gateway/shard.html) | one gateway connection, end to end | internals |
 //// | [`tadpole/gateway/transport`](tadpole/gateway/transport.html) | the stratus websocket behind a wall | internals |
 //// | [`tadpole/gateway/frame`](tadpole/gateway/frame.html) | frame envelope parsing and building: `{op, d, s, t}` | internals |

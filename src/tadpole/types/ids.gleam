@@ -13,8 +13,8 @@
 //// ## The types
 ////
 //// UserId, GuildId, ChannelId, MessageId, RoleId, ApplicationId,
-//// WebhookId. One per Discord object kind this slice touches, all
-//// opaque, all built the same way:
+//// WebhookId, EmojiId. One per Discord object kind this slice touches,
+//// all opaque, all built the same way:
 ////
 //// ```gleam
 //// import tadpole/types/ids
@@ -25,9 +25,10 @@
 //// ```
 ////
 //// Reading back: `user_to_string`, `user_to_int`, `guild_to_string`,
-//// `channel_to_string`, `message_to_string`, `role_to_string`. The
-//// explicit accessors this slice needs. Missing accessors get added
-//// when a milestone dereferences the ID, with a reason in their doc.
+//// `channel_to_string`, `message_to_string`, `role_to_string`,
+//// `emoji_to_string`. The explicit accessors this slice needs. Missing
+//// accessors get added when a milestone dereferences the ID, with a
+//// reason in their doc.
 ////
 //// ## Failure modes
 ////
@@ -85,6 +86,11 @@ pub opaque type WebhookId {
   WebhookId(Snowflake)
 }
 
+/// An opaque custom emoji ID. Construct from a string with `emoji_id`.
+pub opaque type EmojiId {
+  EmojiId(Snowflake)
+}
+
 /// Parse a string as a UserId. Fails with `InvalidId` if the string is
 /// not a valid snowflake.
 pub fn user_id(value: String) -> Result(UserId, InvalidId) {
@@ -127,6 +133,12 @@ pub fn webhook_id(value: String) -> Result(WebhookId, InvalidId) {
   snowflake(value) |> wrap(WebhookId)
 }
 
+/// Parse a string as an EmojiId. Fails with `InvalidId` if the string
+/// is not a valid snowflake.
+pub fn emoji_id(value: String) -> Result(EmojiId, InvalidId) {
+  snowflake(value) |> wrap(EmojiId)
+}
+
 /// Decimal string form of the user ID, ready for URL paths and API calls.
 pub fn user_to_string(id: UserId) -> String {
   let UserId(sf) = id
@@ -161,6 +173,13 @@ pub fn message_to_string(id: MessageId) -> String {
 /// Decimal string form of the role ID.
 pub fn role_to_string(id: RoleId) -> String {
   let RoleId(sf) = id
+  snowflake.to_string(sf)
+}
+
+/// Decimal string form of the emoji ID. The reaction routes need it to
+/// build the `name:id` form a custom emoji travels in.
+pub fn emoji_to_string(id: EmojiId) -> String {
+  let EmojiId(sf) = id
   snowflake.to_string(sf)
 }
 
