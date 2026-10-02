@@ -79,6 +79,30 @@ pub fn backoff_is_capped_at_60s_test() {
   gateway.backoff_ms(100) |> should.equal(gateway.max_backoff_ms)
 }
 
+pub fn backoff_doubles_to_the_cap_then_holds_test() {
+  // The whole ladder. 1000 * 2^n passes the 60s cap at n = 6, so
+  // attempt 5 is the last one below it.
+  gateway.backoff_ms(0) |> should.equal(1000)
+  gateway.backoff_ms(1) |> should.equal(2000)
+  gateway.backoff_ms(2) |> should.equal(4000)
+  gateway.backoff_ms(3) |> should.equal(8000)
+  gateway.backoff_ms(4) |> should.equal(16_000)
+  gateway.backoff_ms(5) |> should.equal(32_000)
+  gateway.backoff_ms(6) |> should.equal(gateway.max_backoff_ms)
+  gateway.backoff_ms(7) |> should.equal(gateway.max_backoff_ms)
+}
+
+pub fn backoff_holds_the_cap_at_large_attempt_counts_test() {
+  // This guards the cost, not the value: the old version also returned
+  // 60_000 here, so nothing below can fail on the number. It called 2 to
+  // the attempt count before capping, which took 2.2s at 100,000 and
+  // 159s at 1,000,000. Both calls are instant now, so restoring that
+  // version turns this test into about two and a half minutes rather
+  // than a failure.
+  gateway.backoff_ms(100_000) |> should.equal(gateway.max_backoff_ms)
+  gateway.backoff_ms(1_000_000) |> should.equal(gateway.max_backoff_ms)
+}
+
 pub fn backoff_never_negative_test() {
   { gateway.backoff_ms(0) >= 0 } |> should.be_true
   { gateway.backoff_ms(7) >= 0 } |> should.be_true

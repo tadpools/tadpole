@@ -77,24 +77,35 @@ pub const max_backoff_ms = 60_000
 
 /// Exponential with a cap: 1s, 2s, 4s, 8s ... 60s. No jitter; Discord's
 /// session start limit already handles identify contention.
+///
+/// The doubling stops at the cap instead of raising the whole power
+/// and capping afterwards: `initial_backoff_ms * 2^n` passes
+/// `max_backoff_ms` at n = 6, so the exponent past 6 cannot change the
+/// answer. `doubled_capped` returns as soon as the cap is passed, so
+/// the cost stops depending on the count. The shard actor calls this
+/// once per failed connect and only clears its attempt counter on
+/// HELLO, so that count keeps growing while the gateway stays
+/// unreachable. Raising the whole power first cost 159s to answer
+/// 60000 at 1,000,000 attempts on the Erlang target.
 pub fn backoff_ms(attempts: Int) -> Int {
   case attempts <= 0 {
     True -> initial_backoff_ms
-    False -> {
-      let raw = initial_backoff_ms * int_power(2, attempts)
-      case raw > max_backoff_ms {
-        True -> max_backoff_ms
-        False -> raw
-      }
-    }
+    False -> doubled_capped(initial_backoff_ms, attempts, max_backoff_ms)
   }
 }
 
-fn int_power(base: Int, exponent: Int) -> Int {
-  case exponent {
-    0 -> 1
-    n if n < 0 -> 1
-    _ -> base * int_power(base, exponent - 1)
+/// `start` doubled `times` over, clamped to `cap`. Stops at the cap as
+/// soon as it is passed, so the work is bounded by the ladder up to the
+/// cap (six steps for the published constants) however large `times`
+/// is.
+fn doubled_capped(start: Int, times: Int, cap: Int) -> Int {
+  case start > cap {
+    True -> cap
+    False ->
+      case times <= 0 {
+        True -> start
+        False -> doubled_capped(start * 2, times - 1, cap)
+      }
   }
 }
 

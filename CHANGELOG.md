@@ -47,6 +47,13 @@ library did not do yet.
   IDENTIFYs, and pointed readers at `identify_delay_ms`, which does not
   exist. It returns the time the whole fleet takes to come up, which the
   docs now say (tadpole/gateway/identify_gate).
+- reconnect backoff caps the doubling instead of raising the power
+  first. Returned milliseconds are unchanged for every input, but the
+  old version multiplied out the full exponent before discarding it,
+  one bignum multiply per attempt, on the shard actor's own process
+  (159s to answer 60000 at 1,000,000 attempts). The shard only clears
+  its attempt counter on HELLO, so that count grows while the gateway
+  stays unreachable (tadpole/gateway). (#34)
 
 ## 2026.2.0 - first-swim (published 2026-09-10)
 
