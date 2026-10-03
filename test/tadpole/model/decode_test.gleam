@@ -72,3 +72,49 @@ pub fn wrong_type_reports_classified_got_test() {
   expected |> should.equal("String")
   got |> should.equal("null")
 }
+
+// A REST body is whatever Discord sent. If it carries a top-level `d`
+// key then `d` is a field of the object, not a wrapper, and peeling it
+// would hand the caller a different object with no error at all.
+
+const outer = "{\"id\":\"900000000000000001\",\"d\":{\"id\":\"900000000000000002\"}}"
+
+pub fn from_json_reads_a_top_level_d_as_data_test() {
+  let assert Ok(outer_box) = decode.from_json(None, outer, box_decoder())
+  ids.user_to_string(outer_box.id) |> should.equal("900000000000000001")
+}
+
+pub fn from_frame_unwraps_the_same_payload_test() {
+  // The gateway path is the one that knows it has an envelope, so this
+  // is where the two differ. Same input, different stated shape.
+  let assert Ok(inner_box) = decode.from_frame(None, outer, box_decoder())
+  ids.user_to_string(inner_box.id) |> should.equal("900000000000000002")
+}
+
+pub fn from_frame_accepts_a_payload_with_no_d_test() {
+  // What the typed event tests and any replay tool write by hand. The
+  // leniency is deliberate and pinned, because removing it would be a
+  // breaking change for anyone replaying captured payloads.
+  let assert Ok(box) =
+    decode.from_frame(None, "{\"id\":\"900000000000000003\"}", box_decoder())
+
+  ids.user_to_string(box.id) |> should.equal("900000000000000003")
+}
+
+pub fn from_frame_reports_a_decode_failure_inside_d_test() {
+  // The reported path is relative to the event object, so a failure
+  // inside `d` still reads as the field that broke rather than "d.id".
+  let payload = "{\"op\":0,\"d\":{\"id\":\"nope\"}}"
+  let assert Error(DecodeFailed(_, path, _, got)) =
+    decode.from_frame(Some("MESSAGE_CREATE"), payload, box_decoder())
+
+  path |> should.equal("id")
+  got |> should.equal("nope")
+}
+
+pub fn from_frame_still_reports_broken_json_test() {
+  let assert Error(DecodeFailed(_, path, _, _)) =
+    decode.from_frame(None, "{oops", box_decoder())
+
+  path |> should.equal("$")
+}
