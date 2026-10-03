@@ -1,96 +1,27 @@
-﻿# tadpole
+# tadpole
 
 A Discord library for Gleam. Every frog starts as a tadpole.
 
 ![](assets/tadpole.gif)
 
-## why tadpole
+Not on Hex yet. See [where this stands](#where-this-stands).
 
-Most Discord libraries are written for dynamic languages first. Tadpole
-is Gleam and OTP first, and the API is shaped by that choice:
-
-- **Opaque IDs.** `UserId`, `GuildId`, `ChannelId`, and `MessageId`
-  are distinct types (tadpole/types/ids). Passing a `GuildId` where a
-  `ChannelId` belongs is a compile error, not a 400 from Discord.
-
-- **Typed events.** The handler matches on `Ready`, `MessageCreate`,
-  and `Resumed` (tadpole/gateway/events). Events Tadpole does not
-  model yet arrive as `Unknown` with the raw payload attached, so a
-  new Discord event becomes data you can log instead of a crash.
-
-- **Typed errors.** Every failure is a variant with context:
-  `RateLimited` carries the retry window in milliseconds, `RestStatus`
-  carries the route, status, and Discord's error body. Recover with
-  pattern matching, not string parsing. The opt-in renderer prints
-  what happened and what to try, and redacts the token on every path
-  (tadpole/error, tadpole/error/render).
-
-- **Managed reconnection.** The shard actor owns the session:
-  heartbeats on Discord's interval with zombie detection, a decision
-  per close code, resume when the session allows it, and backoff
-  between attempts (tadpole/gateway/shard). A dropped websocket is
-  handled, not fatal.
-
-- **Runtime rate limits.** Buckets, remaining counts, and retry
-  windows are read from response headers and 429 bodies at runtime
-  (tadpole/rest/rate_limit). Nothing is hardcoded against a snapshot
-  of Discord's buckets.
-
-- **One API at several depths.** `bot.run` is a thin layer over the
-  same public modules it drives; it calls `shard.start` the way you
-  would (tadpole/bot). When one config and one handler stop being
-  enough, the layer below is already public.
-
-Also included: endpoint bindings for `GET /users/@me`, fetching a channel or
-a single message, reading a channel's history with a cursor for paging
-(`tadpole/rest/endpoints`); model objects whose decoders report where a
-payload stopped matching (`tadpole/model`); and config validation that
-redacts the token in its own describe output (`tadpole.describe_config`).
-
-A first bot and a sharded production bot should be the same framework
-at different sizes: growth is additive, and nothing you wrote at
-hello-world gets renamed when you need more. That contract lives in
-CONTRIBUTING.md, and reviewers hold changes to it.
-
-## where this actually is
-
-The first vertical slice works. A bot can connect to Discord's gateway,
-identify, heartbeat, resume after a disconnect, and receive typed events.
-REST calls run over gleam_httpc with rate-limit handling learned from
-response headers. The echo bot below is a complete program.
-
-Not here yet, so do not assume it:
-
-- multi-shard. One shard. A config asking for more is refused with
-  `ShardingNotSupported` before anything connects.
-- interactions and slash commands
-- embeds, file uploads, message components
-- voice
-- a cache. Every event is what Discord just sent; nothing is remembered
-  between events.
-- member lists or presence beyond what rides along in other payloads
-- graceful shutdown. `bot.stop` closes the gateway; the program ends the
-  usual way.
-
-One honest caveat: everything above is tested against recorded payload
-shapes and canned HTTP responses. It has not run against real Discord
-from CI, and the package is not on Hex yet. The publish gate in
-CONTRIBUTING.md requires one live roundtrip (gateway connect through
-ready, plus one real REST call) first, and that check has not happened
-yet. Adjust trust accordingly.
-
-## a whole bot
+## install
 
 Gleam 1.18+ and Erlang/OTP.
 
-    gleam add tadpole        # not on Hex yet; the publish gate comes first
+    gleam add tadpole
     $env:TADPOLE_TOKEN = "your-bot-token"   # PowerShell
 
-This program lives locally in dev/echo_bot.gleam. That folder stays out
-of version control because it holds token-driven scripts, so the listing
-above is the copy to trust. The `env` helper at the bottom is the only
-Erlang in the program; tadpole ships it, though it is private and
-allowed to move.
+## a whole bot
+
+Echoes back every message it sees that did not come from a bot.
+
+Save this as `dev/echo_bot.gleam` in a clone and run it with
+`gleam run -m echo_bot`. `dev/` is gitignored because it holds token-driven
+scripts, so the copy below is the one to copy. The same program lives at
+`test/examples/echo_bot.gleam`, which `gleam test` compiles, so it cannot go
+stale the way a listing in prose can.
 
 ```gleam
 import gleam/io
@@ -101,6 +32,7 @@ import tadpole/bot
 import tadpole/error/render
 import tadpole/gateway/events.{type Event, MessageCreate, Ready}
 import tadpole/intent
+import tadpole/model/message.{type Message}
 
 pub fn main() {
   case env("TADPOLE_TOKEN") {
@@ -121,22 +53,22 @@ fn run(token: String) {
     tadpole.new(token)
     |> tadpole.with_intents(
       intent.new()
-      |> intent.enable(intent.guilds)
-      |> intent.enable(intent.guild_messages)
-      |> intent.enable(intent.message_content),
+      |> intent.enable(intent.Guilds)
+      |> intent.enable(intent.GuildMessages)
+      |> intent.enable(intent.MessageContent),
     )
 
-  // Message Content is privileged: without the portal toggle Discord
-  // hangs up with close code 4014 the moment we identify.
+  // Message Content is privileged. Without the portal toggle Discord
+  // closes with code 4014 the moment we identify.
   case tadpole.privileged_intents_requested(cfg) {
     [] -> Nil
     privileged ->
       io.println(
         "echo_bot: this config requests privileged intents ("
         <> join_names(privileged)
-        <> "). Enable them in the Discord Developer Portal → Bot → "
-        <> "Privileged Gateway Intents, or the gateway will close the "
-        <> "connection with code 4014 (disallowed intents).",
+        <> "). Enable them in the Discord Developer Portal, Bot, "
+        <> "Privileged Gateway Intents, or the gateway closes the "
+        <> "connection with code 4014.",
       )
   }
 
@@ -151,30 +83,27 @@ fn handle_event(tadbot: bot.Bot, event: Event) {
     Ready(user, _) -> io.println("logged in as " <> user.username)
 
     MessageCreate(message) ->
-      case message.author.bot {
-        // Echoing our own messages would loop forever; empty content is
-        // an embed-only post, which a plain text reply cannot echo.
-        True -> Nil
-        False ->
-          case message.content {
-            "" -> Nil
-            content -> {
-              let result =
-                bot.reply(tadbot, message.channel_id, message.id, content)
-              case result {
-                Ok(_) -> Nil
-                Error(e) -> io.println(render.render_error(e))
-              }
-            }
-          }
+      // Echoing our own messages would loop forever. Empty content is an
+      // embed-only post, which a text reply cannot echo.
+      case message.author.bot, message.content {
+        True, _ -> Nil
+        False, "" -> Nil
+        False, content -> reply(tadbot, message, content)
       }
 
     _ -> Nil
   }
 }
 
-fn join_names(bits: List(Int)) -> String {
-  bits
+fn reply(tadbot: bot.Bot, message: Message, content: String) -> Nil {
+  case bot.reply(tadbot, message.channel_id, message.id, content) {
+    Ok(_) -> Nil
+    Error(e) -> io.println(render.render_error(e))
+  }
+}
+
+fn join_names(names: List(intent.Intent)) -> String {
+  names
   |> list.map(intent.intent_name)
   |> string.join(", ")
 }
@@ -183,45 +112,83 @@ fn join_names(bits: List(Int)) -> String {
 fn env(name: String) -> Result(String, Nil)
 ```
 
-To run it against this repo's source, save the program as
-dev/echo_bot.gleam in your clone. The dev/ folder is gitignored, so it
-is yours to create, and `gleam run -m echo_bot` picks the module up
-from there:
+Message Content is a privileged intent. Turn it on in the Developer Portal
+under Bot, Privileged Gateway Intents, or drop it from the config. Without
+the toggle Discord closes the connection with code 4014 as soon as the bot
+identifies. The program prints a reminder before that happens. It cannot
+check the portal for you.
 
-    gleam run -m echo_bot
+## what is here
 
-Message Content is a privileged intent. Enable it in the Discord
-Developer Portal (Bot → Privileged Gateway Intents) or drop it from the
-config. Without the toggle, Discord hangs up with close code 4014 the
-moment the bot identifies. The example prints a reminder before that
-happens; it cannot check the portal for you.
+- **Opaque IDs.** One type per Discord object, so the wrong one is a
+  compile error and not a 400 from Discord.
+- **Typed events.** Match on `Ready`, `MessageCreate` and the rest. An
+  event the library does not model arrives as `Unknown` with the raw
+  payload, so it is data you can log.
+- **Typed errors.** `RateLimited` carries the retry window, `RestStatus`
+  carries the route and Discord's error body. `tadpole/error/render` prints
+  what happened and redacts the token.
+- **Reconnection you do not have to write.** The shard actor heartbeats on
+  Discord's interval, notices a zombie connection, decides per close code
+  whether to resume or identify fresh, and backs off between attempts.
+- **Rate limits read at runtime.** Buckets, remaining counts and retry
+  windows come from response headers and 429 bodies. No hardcoded table.
+- **REST.** Read a channel, read history with a cursor, fetch a message,
+  send, reply, edit, delete, react, type.
+
+`tadpole/bot` is a thin layer over the same public modules it drives, so
+dropping down to `tadpole/rest/execute` or the shard is always available.
+
+## not here yet
+
+Do not assume any of these:
+
+- multi-shard. One shard. A config asking for more is refused with
+  `ShardingNotSupported` before anything connects.
+- interactions and slash commands
+- embeds, file uploads, message components
+- voice
+- a cache. Every event is what Discord just sent. Nothing is remembered.
+- member lists or presence beyond what rides along in other payloads
+- graceful shutdown. `bot.stop` closes the gateway and the program ends the
+  usual way.
+
+## where this stands
+
+Everything is tested against recorded payloads and canned HTTP responses.
+The one test that touches real Discord is gated on `TADPOLE_TOKEN`, so CI
+needs no secret and never sees a network.
+
+That gate has been run by hand and passes: REST authentication, a gateway
+connect through READY, and a forced reconnect that comes back RESUMED. It
+does not run from CI.
+
+None of the REST routes added in 2026.3.0 has been exercised against real
+Discord. They are built from Discord's documented shapes and pinned by
+fixtures, which is a weaker claim than having run them.
 
 ## running the tests
 
     gleam test
 
-All tests run against recorded fixtures and canned HTTP responses. No
-network in CI. The suite has three layers (unit, property, contract);
-TESTING.md is the map: what each layer is for and how to add to it.
+Three layers, unit, property and contract. TESTING.md is the map, including
+how to add to each.
 
-The one exception is the env-gated live gate: with `TADPOLE_TOKEN` set,
-`gleam test` also runs CONTRIBUTING's publish gate for real (REST
-authentication, gateway connect through READY, typed events, clean
-close). Without the variable it skips. See TESTING.md.
+With a token set, the live gate runs too:
 
-Smoke runs against real Discord happen by hand, never from CI, with a
-token in `TADPOLE_TOKEN`. The smoke scripts live in dev/ and are not
-part of the published tree; they are how the publish gate gets run.
-Both exit immediately without the token set:
+    TADPOLE_TOKEN="..." gleam test
 
-    gleam run -m echo_bot     # the echo bot: repeats non-bot messages
-    gleam run -m smoke_gw     # connects one shard, prints events for 60s, exits
+Smoke runs are by hand, from `dev/`, which is not in the published tree:
 
-Windows note: the Erlang installer doesn't add itself to PATH. Add
-`C:\Program Files\Erlang OTP\bin` yourself.
+    gleam run -m echo_bot     # the echo bot above
+    gleam run -m smoke_gw     # one shard, print events for 60s, exit
+
+Both exit immediately without the token.
+
+Windows: the Erlang installer does not add itself to PATH. Add
+`C:\Program Files\Erlang OTP\bin`.
 
 ## contributing
 
-Read CONTRIBUTING.md. Short version: zero compiler warnings, tests for
-everything public, and nothing gets described in this README before it
-has a test.
+CONTRIBUTING.md. Zero compiler warnings, a test for everything public, and
+nothing described in this README before it has one.
