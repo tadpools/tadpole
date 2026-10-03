@@ -10,7 +10,19 @@ Not on Hex yet. See [where this stands](#where-this-stands).
 
 Gleam 1.18+ and Erlang/OTP.
 
-    gleam add tadpole
+The code on `main` needs 2026.3.0, which is not published. Add it to your
+`gleam.toml` as a git dependency until it is:
+
+```toml
+[dependencies]
+tadpole = { git = "https://github.com/tadpools/tadpole", ref = "main" }
+```
+
+Hex carries 2026.2.0, which predates the intent sum type and will not compile
+the example below.
+
+Then set the bot token:
+
     $env:TADPOLE_TOKEN = "your-bot-token"   # PowerShell
 
 ## a whole bot
