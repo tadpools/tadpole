@@ -6,6 +6,8 @@
 import gleam/http
 import gleam/http/request.{type Request}
 import gleam/http/response
+import gleam/int
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
@@ -345,6 +347,200 @@ pub fn get_message_reads_a_top_level_d_as_data_test() {
 
   ids.message_to_string(msg.id) |> should.equal(message)
   msg.content |> should.equal("the real message")
+}
+
+// POST /channels/{id}/messages/bulk-delete
+
+fn message_ids(count: Int) -> List(ids.MessageId) {
+  make_ids(1, count, [])
+}
+
+/// Synthetic consecutive snowflakes, invented like every other id here.
+fn make_ids(
+  offset: Int,
+  remaining: Int,
+  acc: List(ids.MessageId),
+) -> List(ids.MessageId) {
+  case remaining {
+    0 -> list.reverse(acc)
+    _ -> {
+      let assert Ok(id) =
+        ids.message_id(int.to_string(700_000_000_000_000_000 + offset))
+
+      make_ids(offset + 1, remaining - 1, [id, ..acc])
+    }
+  }
+}
+
+pub fn bulk_delete_posts_the_id_array_test() {
+  reset_recorder()
+
+  let assert Ok(Nil) =
+    endpoints.bulk_delete_messages_with(
+      client(),
+      no_content_transport(),
+      channel_id(channel),
+      message_ids(3),
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.method |> should.equal(http.Post)
+  sent.path
+  |> should.equal("/api/v10/channels/" <> channel <> "/messages/bulk-delete")
+  sent.body
+  |> should.equal(
+    "{\"messages\":[\"700000000000000001\",\"700000000000000002\",\"700000000000000003\"]}",
+  )
+}
+
+pub fn bulk_delete_accepts_exactly_two_ids_test() {
+  // Two is the documented floor and it has to actually work.
+  reset_recorder()
+
+  let assert Ok(Nil) =
+    endpoints.bulk_delete_messages_with(
+      client(),
+      no_content_transport(),
+      channel_id(channel),
+      message_ids(2),
+    )
+
+  list.length(recorded_requests()) |> should.equal(1)
+}
+
+pub fn bulk_delete_accepts_exactly_one_hundred_ids_test() {
+  reset_recorder()
+
+  let assert Ok(Nil) =
+    endpoints.bulk_delete_messages_with(
+      client(),
+      no_content_transport(),
+      channel_id(channel),
+      message_ids(100),
+    )
+
+  list.length(recorded_requests()) |> should.equal(1)
+}
+
+pub fn bulk_delete_rejects_a_single_id_without_sending_test() {
+  reset_recorder()
+
+  let assert Error(error.BulkDeleteRejected(error.TooFewMessages(1))) =
+    endpoints.bulk_delete_messages_with(
+      client(),
+      no_content_transport(),
+      channel_id(channel),
+      message_ids(1),
+    )
+
+  // The whole point of checking first: nothing goes on the wire.
+  recorded_requests() |> should.equal([])
+}
+
+pub fn bulk_delete_rejects_zero_ids_without_sending_test() {
+  reset_recorder()
+
+  let assert Error(error.BulkDeleteRejected(error.TooFewMessages(0))) =
+    endpoints.bulk_delete_messages_with(
+      client(),
+      no_content_transport(),
+      channel_id(channel),
+      [],
+    )
+
+  recorded_requests() |> should.equal([])
+}
+
+pub fn bulk_delete_rejects_over_one_hundred_without_sending_test() {
+  reset_recorder()
+
+  let assert Error(error.BulkDeleteRejected(error.TooManyMessages(101))) =
+    endpoints.bulk_delete_messages_with(
+      client(),
+      no_content_transport(),
+      channel_id(channel),
+      message_ids(101),
+    )
+
+  recorded_requests() |> should.equal([])
+}
+
+pub fn bulk_delete_rejects_a_repeated_id_without_sending_test() {
+  // Discord fails the whole request on a duplicate rather than deleting
+  // once, so catching it here saves a round trip that cannot succeed.
+  reset_recorder()
+  let assert Ok(repeated) = ids.message_id("700000000000000001")
+
+  let assert Error(error.BulkDeleteRejected(error.DuplicateMessageIds)) =
+    endpoints.bulk_delete_messages_with(
+      client(),
+      no_content_transport(),
+      channel_id(channel),
+      [repeated, repeated],
+    )
+
+  recorded_requests() |> should.equal([])
+}
+
+pub fn bulk_delete_rejects_a_duplicate_among_distinct_ids_test() {
+  reset_recorder()
+  let assert [first, second, _] = message_ids(3)
+
+  let assert Error(error.BulkDeleteRejected(error.DuplicateMessageIds)) =
+    endpoints.bulk_delete_messages_with(
+      client(),
+      no_content_transport(),
+      channel_id(channel),
+      [first, second, second],
+    )
+
+  recorded_requests() |> should.equal([])
+}
+
+pub fn bulk_delete_forbidden_maps_to_rest_status_test() {
+  reset_recorder()
+
+  let assert Error(error.RestStatus(route, 403, Some(50_013), _)) =
+    endpoints.bulk_delete_messages_with(
+      client(),
+      fn(request) {
+        record_request(request)
+        Ok(response.Response(
+          status: 403,
+          headers: [],
+          body: "{\"message\": \"Missing Permissions\", \"code\": 50013}",
+        ))
+      },
+      channel_id(channel),
+      message_ids(2),
+    )
+
+  error.route_to_string(route)
+  |> should.equal("POST /channels/" <> channel <> "/messages/bulk-delete")
+}
+
+pub fn bulk_delete_age_limit_arrives_as_a_400_test() {
+  // The rule tadpole cannot check. Discord refuses messages older than
+  // two weeks, and it arrives as an ordinary RestStatus rather than
+  // anything the wrapper could have caught.
+  reset_recorder()
+
+  let assert Error(error.RestStatus(_, 400, _, _)) =
+    endpoints.bulk_delete_messages_with(
+      client(),
+      fn(request) {
+        record_request(request)
+        Ok(response.Response(
+          status: 400,
+          headers: [],
+          body: "{\"message\": \"Cannot delete a message that is older than two weeks\", \"code\": 0}",
+        ))
+      },
+      channel_id(channel),
+      message_ids(2),
+    )
+
+  list.length(recorded_requests()) |> should.equal(1)
 }
 
 // PUT /channels/{id}/messages/{id}/reactions/{emoji}/@me

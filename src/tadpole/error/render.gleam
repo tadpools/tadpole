@@ -36,7 +36,7 @@ import gleam/int
 import gleam/option.{None, Some}
 import gleam/string
 import tadpole/error.{
-  type TadpoleError, DecodeFailed, GatewayClosedUnexpectedly,
+  type TadpoleError, BulkDeleteRejected, DecodeFailed, GatewayClosedUnexpectedly,
   GatewayConnectFailed, HeartbeatAckMissed, HeartbeatTimeout, IdentifyFailed,
   IntentsNotPrivileged, InternalContractViolation, InvalidTokenFormat,
   MissingToken, RateLimited, RestStatus, ResumeFailed, ShardingNotSupported,
@@ -75,6 +75,7 @@ pub fn severity_of(error: TadpoleError) -> Severity {
 
     RestStatus(_, _, _, _) -> Actionable
     RateLimited(_, _, _, _) -> Light
+    BulkDeleteRejected(_) -> Actionable
 
     DecodeFailed(_, _, _, _) -> Actionable
     UnknownEvent(_, _) -> Light
@@ -254,6 +255,16 @@ fn describe(error: TadpoleError) -> #(String, String) {
         <> "  1. Nothing — Tadpole queued the request and will send it automatically\n"
         <> "  2. If 429s are frequent, batch with bulk endpoints or add delays\n"
         <> "  3. Never retry immediately; that risks an IP ban",
+    )
+
+    BulkDeleteRejected(reason) -> #(
+      "That bulk delete never left, because Discord would have refused it.",
+      error.bulk_delete_reason_to_string(reason)
+        <> ". Caught here rather than sent, since Discord answers every one of"
+        <> " these with a 400 and its own wording.\n\nTry:\n"
+        <> "  1. Send between 2 and 100 message ids in one call\n"
+        <> "  2. Drop any id that appears more than once\n"
+        <> "  3. Split a larger delete across several calls, newest batch first",
     )
 
     DecodeFailed(event, path, expected, got) -> #(

@@ -234,6 +234,39 @@ pub fn get_messages_delegates_with_the_query_test() {
   only.content |> should.equal("quack")
 }
 
+// bulk delete
+
+pub fn bulk_delete_delegates_over_the_bot_transport_test() {
+  reset_recorder()
+
+  let assert Ok(Nil) =
+    bot.bulk_delete_messages(
+      hand_built_bot(transport_no_content()),
+      channel_id(channel),
+      [message_id(message), message_id("124400000000000010")],
+    )
+
+  let assert [sent_request] = recorded_requests()
+  sent_request.method |> should.equal(http.Post)
+  sent_request.path
+  |> should.equal("/api/v10/channels/" <> channel <> "/messages/bulk-delete")
+}
+
+pub fn bulk_delete_rejects_before_reaching_the_transport_test() {
+  // One id is below Discord's floor of two. The bot layer must not turn
+  // a call that cannot succeed into a request.
+  reset_recorder()
+
+  let assert Error(error.BulkDeleteRejected(error.TooFewMessages(1))) =
+    bot.bulk_delete_messages(
+      hand_built_bot(transport_no_content()),
+      channel_id(channel),
+      [message_id(message)],
+    )
+
+  recorded_requests() |> should.equal([])
+}
+
 // reactions
 
 pub fn add_reaction_delegates_over_the_bot_transport_test() {

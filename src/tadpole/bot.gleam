@@ -527,6 +527,30 @@ fn typing_failure_reason(e: TadpoleError) -> String {
   }
 }
 
+/// Delete 2 to 100 messages in one request. Returns Nil on success (204).
+///
+/// Guild channels only, and the bot needs Manage Messages. Three of
+/// Discord's rules are checked before the request goes out and come back
+/// as `BulkDeleteRejected`: too few ids, too many, or a repeated id.
+///
+/// The one rule tadpole cannot check is age. **Discord will not delete
+/// messages older than two weeks** and fails the whole request with a 400
+/// if any id is that old, which arrives as `RestStatus`. If a delete of
+/// ids you just collected fails that way, age is the first thing to
+/// check.
+pub fn bulk_delete_messages(
+  bot: Bot,
+  channel_id: ChannelId,
+  message_ids: List(MessageId),
+) -> Result(Nil, TadpoleError) {
+  endpoints.bulk_delete_messages_with(
+    bot.rest,
+    bot.transport,
+    channel_id,
+    message_ids,
+  )
+}
+
 /// Close the gateway: sends the shard actor its Stop message.
 ///
 /// Never fails and never blocks. The close is asynchronous, and the shard

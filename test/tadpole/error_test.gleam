@@ -10,8 +10,8 @@ import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
 import tadpole/error.{
-  type TadpoleError, DecodeFailed, GatewayClosedUnexpectedly, HeartbeatAckMissed,
-  HeartbeatTimeout, IdentifyFailed, IntentsNotPrivileged,
+  type TadpoleError, BulkDeleteRejected, DecodeFailed, GatewayClosedUnexpectedly,
+  HeartbeatAckMissed, HeartbeatTimeout, IdentifyFailed, IntentsNotPrivileged,
   InternalContractViolation, InvalidTokenFormat, MissingToken, RateLimited,
   RestStatus, ShardingNotSupported, UnknownEvent, bucket_id, method_to_string,
   redact_token, route_to_string,
@@ -110,6 +110,36 @@ pub fn rate_limit_renders_wait_and_reassurance_test() {
   string.contains(rendered, "Polly notes:") |> should.be_true
 }
 
+// The whole point of the variant is that the reason survives into the
+// text, so the caller is not left reading Discord's 400 to work out
+// which rule it broke. Assert the reason and the count, not just
+// "something was printed".
+
+pub fn bulk_delete_refusal_names_the_rule_and_the_count_test() {
+  let rendered = render_error(BulkDeleteRejected(error.TooFewMessages(1)))
+
+  string.contains(rendered, "at least 2 ids") |> should.be_true
+  string.contains(rendered, "got 1") |> should.be_true
+}
+
+pub fn bulk_delete_over_the_limit_names_the_rule_and_the_count_test() {
+  let rendered = render_error(BulkDeleteRejected(error.TooManyMessages(101)))
+
+  string.contains(rendered, "at most 100 ids") |> should.be_true
+  string.contains(rendered, "got 101") |> should.be_true
+}
+
+pub fn bulk_delete_duplicate_names_the_rule_test() {
+  let rendered = render_error(BulkDeleteRejected(error.DuplicateMessageIds))
+
+  string.contains(rendered, "appeared twice") |> should.be_true
+}
+
+pub fn bulk_delete_refusal_is_actionable_test() {
+  render.severity_of(BulkDeleteRejected(error.DuplicateMessageIds))
+  |> should.equal(Actionable)
+}
+
 pub fn global_rate_limit_is_flagged_test() {
   let rendered =
     render_error(RateLimited(
@@ -206,6 +236,9 @@ pub fn every_variant_renders_nonempty_test() {
       False,
       Some(bucket_id("b")),
     ),
+    BulkDeleteRejected(error.TooFewMessages(1)),
+    BulkDeleteRejected(error.TooManyMessages(101)),
+    BulkDeleteRejected(error.DuplicateMessageIds),
     DecodeFailed(None, "d.x", "Int", "String"),
     UnknownEvent("NEW_THING", 0),
     InternalContractViolation("mod", "desc", Some("cause")),
