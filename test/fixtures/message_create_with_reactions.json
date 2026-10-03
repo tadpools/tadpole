@@ -1,0 +1,51 @@
+{
+  "t": "MESSAGE_CREATE",
+  "s": 5,
+  "op": 0,
+  "d": {
+    "id": "110000000000000003",
+    "channel_id": "400000000000000001",
+    "guild_id": "300000000000000001",
+    "author": {
+      "id": "100000000000000002",
+      "username": "lilypad",
+      "bot": false
+    },
+    "content": "reacted to pond",
+    "timestamp": "2026-09-09T12:05:00.000000+00:00",
+    "pinned": false,
+    "type": 0,
+    "reactions": [
+      {
+        "count": 3,
+        "count_details": {
+          "burst": 1,
+          "normal": 2
+        },
+        "me": false,
+        "me_burst": false,
+        "emoji": {
+          "id": null,
+          "name": "🔥",
+          "animated": false
+        },
+        "burst_colors": []
+      },
+      {
+        "count": 1,
+        "count_details": {
+          "burst": 0,
+          "normal": 1
+        },
+        "me": true,
+        "me_burst": false,
+        "emoji": {
+          "id": "700000000000000001",
+          "name": "lilypad",
+          "animated": true
+        },
+        "burst_colors": ["#5865F2"]
+      }
+    ]
+  }
+}

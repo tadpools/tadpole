@@ -31,8 +31,16 @@
 ////
 //// - [`tadpole/types/ids`](../types/ids.html) the `EmojiId` behind `Custom`
 //// - [`tadpole/rest/endpoints`](../rest/endpoints.html) the routes that take one
+//// The emoji as it arrives inside a payload, which is a different shape
+//// from the one you send. `Emoji` is for requests; `PartialEmoji` is
+//// what Discord sends inside a reaction or an event. `Reaction` is one
+//// emoji's counts on one message, and `model/message` carries the list on
+//// every message it decodes, so reading who reacted costs nothing.
 
+import gleam/dynamic/decode as d
+import gleam/option.{type Option, None, Some}
 import gleam/uri
+import tadpole/model/decode
 import tadpole/types/ids.{type EmojiId}
 
 /// An emoji for a reaction. Standard unicode characters or a custom guild
@@ -83,4 +91,111 @@ pub fn to_text(emoji: Emoji) -> String {
     Unicode(characters) -> characters
     Custom(name: name, id: id) -> name <> ":" <> ids.emoji_to_string(id)
   }
+}
+
+pub type PartialEmoji {
+  PartialEmoji(
+    /// None for a standard emoji. Discord sends `"id": null` for those
+    /// rather than leaving the key out, so absent and null both land
+    /// here as None.
+    id: Option(EmojiId),
+    /// None when Discord sends null. The docs scope that to reaction
+    /// emoji specifically: a custom emoji deleted from its guild still
+    /// turns up in a reaction with no name.
+    name: Option(String),
+    /// Sent only in reaction events, and only for animated emoji, so
+    /// False covers every other payload.
+    animated: Bool,
+  )
+}
+
+/// Decoder for the emoji object as it appears inside a reaction.
+pub fn partial_decoder() -> d.Decoder(PartialEmoji) {
+  use id <- d.optional_field(
+    "id",
+    None,
+    d.optional(decode.snowflake_id(ids.emoji_id)),
+  )
+  use name <- d.optional_field("name", None, d.optional(d.string))
+  use animated <- d.optional_field("animated", False, d.bool)
+  d.success(PartialEmoji(id: id, name: name, animated: animated))
+}
+
+/// The request form of this emoji, for reacting with the emoji you just
+/// read off a message.
+///
+/// None when there is nothing to send: a nameless emoji has no name and
+/// no characters, which is what Discord sends for a custom emoji that
+/// has since been deleted from its guild.
+pub fn to_request(partial: PartialEmoji) -> Option(Emoji) {
+  case partial.id, partial.name {
+    Some(id), Some(name) -> Some(Custom(name: name, id: id))
+    _, Some(name) -> Some(Unicode(name))
+    _, _ -> None
+  }
+}
+
+/// One emoji's reactions to a message, as Discord counts them.
+///
+/// Discord splits `count` into normal and super ("burst") reacts in a
+/// nested object. The split is flattened here because reading it is the
+/// point, and `count` is kept because it is the number that includes both
+/// and stays the authority when the split is absent.
+pub type Reaction {
+  Reaction(
+    /// Total reacts, super reacts included. Discord's `count`.
+    count: Int,
+    /// How many of `count` were super reacts. `count_details.burst`.
+    burst_count: Int,
+    /// How many of `count` were normal. `count_details.normal`.
+    normal_count: Int,
+    /// Whether the bot itself reacted with this emoji.
+    me: Bool,
+    /// Whether the bot super-reacted with this emoji.
+    me_burst: Bool,
+    emoji: PartialEmoji,
+    /// The HEX colours Discord used for super reacts. Populated only by
+    /// the payloads that carry super reacts, so empty otherwise.
+    burst_colors: List(String),
+  )
+}
+
+/// Decoder for one entry of a message's `reactions`.
+///
+/// `count` is required because it is the field every caller wants and
+/// there is no honest default for it. `count_details` is optional: when
+/// it is absent the split reads 0 and 0, and `count` carries the whole
+/// truth. That is the docs' shape today, so treating a missing split as
+/// zero rather than guessing a proportion keeps the numbers honest.
+pub fn reaction_decoder() -> d.Decoder(Reaction) {
+  let count_details_decoder = {
+    use burst <- d.optional_field("burst", 0, d.int)
+    use normal <- d.optional_field("normal", 0, d.int)
+    d.success(#(burst, normal))
+  }
+  use count <- d.field("count", d.int)
+  use details <- d.optional_field(
+    "count_details",
+    Some(#(0, 0)),
+    d.optional(count_details_decoder),
+  )
+  let #(burst_count, normal_count) = option.unwrap(details, #(0, 0))
+  use me <- d.optional_field("me", False, d.bool)
+  use me_burst <- d.optional_field("me_burst", False, d.bool)
+  use emoji <- d.field("emoji", partial_decoder())
+  use burst_colors <- d.optional_field("burst_colors", [], d.list(d.string))
+  d.success(Reaction(
+    count: count,
+    burst_count: burst_count,
+    normal_count: normal_count,
+    me: me,
+    me_burst: me_burst,
+    emoji: emoji,
+    burst_colors: burst_colors,
+  ))
+}
+
+/// Decoder for a message's whole `reactions` array.
+pub fn reaction_list_decoder() -> d.Decoder(List(Reaction)) {
+  d.list(reaction_decoder())
 }

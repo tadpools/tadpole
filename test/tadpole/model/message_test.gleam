@@ -186,3 +186,41 @@ pub fn update_from_json_garbage_id_is_decode_failed_test() {
   expected |> should.equal("a Discord snowflake string")
   got |> should.equal("croak")
 }
+
+pub fn from_json_without_a_reactions_key_decodes_to_none_test() {
+  // Discord omits the key on some payloads, and a missing field nobody
+  // asked for must not fail the whole decode.
+  let payload =
+    "{\"id\":\"124400000000000009\",\"channel_id\":\"742300000000000001\","
+    <> "\"author\":{\"id\":\"900000000000000125\",\"username\":\"lilypad_bot\"},"
+    <> "\"content\":\"quack\",\"timestamp\":\"2026-09-07T18:00:00.000000+00:00\"}"
+
+  let assert Ok(decoded) = message.from_json(payload)
+  decoded.reactions |> should.equal([])
+}
+
+pub fn from_json_with_an_empty_reactions_array_decodes_to_none_test() {
+  let payload =
+    "{\"id\":\"124400000000000009\",\"channel_id\":\"742300000000000001\","
+    <> "\"author\":{\"id\":\"900000000000000125\",\"username\":\"lilypad_bot\"},"
+    <> "\"content\":\"quack\",\"timestamp\":\"2026-09-07T18:00:00.000000+00:00\","
+    <> "\"reactions\":[]}"
+
+  let assert Ok(decoded) = message.from_json(payload)
+  decoded.reactions |> should.equal([])
+}
+
+pub fn from_json_bad_reaction_emoji_id_fails_at_that_path_test() {
+  // The reaction's emoji id goes through the same snowflake validation
+  // as every other id, and the reported path points at the entry that
+  // broke rather than at the message as a whole.
+  let payload =
+    "{\"id\":\"124400000000000009\",\"channel_id\":\"742300000000000001\","
+    <> "\"author\":{\"id\":\"900000000000000125\",\"username\":\"lilypad_bot\"},"
+    <> "\"content\":\"quack\",\"timestamp\":\"2026-09-07T18:00:00.000000+00:00\","
+    <> "\"reactions\":[{\"count\":1,\"emoji\":{\"id\":\"nope\",\"name\":\"x\"}}]}"
+
+  let assert Error(DecodeFailed(_, path, _, _)) = message.from_json(payload)
+
+  path |> should.equal("reactions[0].emoji.id")
+}
