@@ -80,6 +80,7 @@
 //// - [`tadpole/error/render`](error/render.html) every variant to text
 //// - [`tadpole/guide`](guide.html) matching `RateLimited` for control flow
 
+import gleam/int
 import gleam/option.{type Option}
 import gleam/string
 
@@ -115,6 +116,11 @@ pub type TadpoleError {
     is_global: Bool,
     bucket: Option(BucketId),
   )
+  /// A bulk delete refused before the request went out, because Discord
+  /// answers 400 for every shape in `BulkDeleteReason`. The route exists
+  /// so the caller is told which rule it broke rather than receiving a
+  /// 400 with Discord's wording.
+  BulkDeleteRejected(reason: BulkDeleteReason)
 
   DecodeFailed(
     event: Option(String),
@@ -188,6 +194,32 @@ pub fn method_to_string(method: HttpMethod) -> String {
     PATCH -> "PATCH"
     HEAD -> "HEAD"
     OPTIONS -> "OPTIONS"
+  }
+}
+
+/// Why a bulk delete was refused without asking Discord.
+///
+/// Discord's bounds are documented rather than guessed: it counts every
+/// id given, including ones that do not exist, so fewer than two and
+/// more than a hundred both fail. A repeated id fails the whole request
+/// rather than deleting once.
+pub type BulkDeleteReason {
+  /// Discord will not delete a single message on this route.
+  TooFewMessages(got: Int)
+  /// Above the documented hundred.
+  TooManyMessages(got: Int)
+  /// The same id twice in one request.
+  DuplicateMessageIds
+}
+
+/// Human-readable form of a bulk delete refusal, for logging.
+pub fn bulk_delete_reason_to_string(reason: BulkDeleteReason) -> String {
+  case reason {
+    TooFewMessages(got) ->
+      "a bulk delete needs at least 2 ids, got " <> int.to_string(got)
+    TooManyMessages(got) ->
+      "a bulk delete takes at most 100 ids, got " <> int.to_string(got)
+    DuplicateMessageIds -> "the same message id appeared twice"
   }
 }
 

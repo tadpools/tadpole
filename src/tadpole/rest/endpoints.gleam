@@ -97,7 +97,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
-import tadpole/error.{type TadpoleError}
+import tadpole/error.{type BulkDeleteReason, type TadpoleError}
 import tadpole/model/channel.{type Channel}
 import tadpole/model/decode
 /// Imported as a bare function rather than called as `emoji.something`,
@@ -160,6 +160,111 @@ const max_history_limit = 100
 /// Discord's documented default, used when a caller wants "whatever is
 /// usual" rather than a number.
 pub const default_history_limit = 50
+
+/// Discord's documented bounds on a bulk delete. Both ends fail at
+/// Discord, and both are checked here rather than sent.
+const min_bulk_delete = 2
+
+const max_bulk_delete = 100
+
+/// POST /channels/{channel_id}/messages/bulk-delete, delete 2 to 100
+/// messages in one request. Returns Nil on success (204).
+///
+/// Guild channels only, and the bot needs Manage Messages there.
+///
+/// Three of Discord's rules are checked here so the request never goes
+/// out, each coming back as `BulkDeleteRejected` naming the rule rather
+/// than a 400 in Discord's wording:
+///
+/// - between 2 and 100 ids. Discord counts every id given, including
+///   ones that do not exist, so a call that looks long enough can still
+///   fail on the count.
+/// - no id twice. Discord fails the whole request rather than deleting
+///   once.
+///
+/// One rule cannot be checked here and is worth knowing: **Discord will
+/// not delete messages older than two weeks** and answers 400 for the
+/// whole request if any id is that old. Tadpole has no way to know an
+/// id's age without fetching the message, so that one arrives as
+/// `RestStatus` with status 400. If a bulk delete of ids you just
+/// collected fails with a 400, age is the reason to check first.
+///
+/// Fails with RestStatus on non-2xx. 403 means the bot lacks Manage
+/// Messages, 404 means the channel is wrong.
+pub fn bulk_delete_messages(
+  client: rest.RestClient,
+  channel_id: ChannelId,
+  message_ids: List(MessageId),
+) -> Result(Nil, TadpoleError) {
+  bulk_delete_messages_with(
+    client,
+    execute.httpc_transport(client.timeout_ms),
+    channel_id,
+    message_ids,
+  )
+}
+
+/// `bulk_delete_messages` over an injected transport.
+pub fn bulk_delete_messages_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  message_ids: List(MessageId),
+) -> Result(Nil, TadpoleError) {
+  case check_bulk_delete(message_ids) {
+    Error(reason) -> Error(error.BulkDeleteRejected(reason))
+    Ok(_) -> {
+      let body =
+        json.object([
+          #(
+            "messages",
+            json.array(message_ids, fn(id) {
+              json.string(ids.message_to_string(id))
+            }),
+          ),
+        ])
+        |> json.to_string
+      let request =
+        rest.post(
+          "/channels/"
+            <> ids.channel_to_string(channel_id)
+            <> "/messages/bulk-delete",
+          body,
+        )
+      case execute.send(client, request, transport) {
+        Ok(_) -> Ok(Nil)
+        Error(e) -> Error(e)
+      }
+    }
+  }
+}
+
+/// Discord's documented bounds, checked before the request is built.
+fn check_bulk_delete(
+  message_ids: List(MessageId),
+) -> Result(Nil, BulkDeleteReason) {
+  case length_of(message_ids) {
+    n if n < min_bulk_delete -> Error(error.TooFewMessages(n))
+    n if n > max_bulk_delete -> Error(error.TooManyMessages(n))
+    _ ->
+      case has_duplicates(message_ids) {
+        True -> Error(error.DuplicateMessageIds)
+        False -> Ok(Nil)
+      }
+  }
+}
+
+fn has_duplicates(message_ids: List(MessageId)) -> Bool {
+  let ids = list.map(message_ids, ids.message_to_string)
+  length_of(ids) != length_of(list.unique(ids))
+}
+
+fn length_of(list: List(a)) -> Int {
+  case list {
+    [] -> 0
+    [_, ..rest] -> 1 + length_of(rest)
+  }
+}
 
 /// GET /channels/{channel_id}/messages, one page of a channel's history.
 ///

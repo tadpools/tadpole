@@ -76,6 +76,16 @@ library did not do yet.
   fresh httpc transport and ignored the bot's, so a Bot built with an
   injected transport would hit the real network for that one call and
   not for the others.
+- bulk delete: `endpoints.bulk_delete_messages` and the same on `bot`,
+  clearing 2 to 100 messages in one request. Three of Discord's rules are
+  checked here rather than sent, because Discord answers every one with a
+  400: too few ids, too many, and a repeated id. Each comes back as
+  `BulkDeleteRejected`, whose reason names the rule broken, so the caller
+  is not left reading Discord's wording to work out which one it hit. The
+  fourth rule cannot be checked and is documented instead: Discord will
+  not delete messages older than two weeks and fails the whole request if
+  any id is that old, which arrives as `RestStatus` with status 400
+  because knowing an id's age would mean fetching the message.
 - `decode.from_json` no longer guesses whether a payload is a gateway
   envelope. It decoded a bare object, and if the payload happened to
   carry a top-level `d` key it treated that key as a wrapper and decoded
