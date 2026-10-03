@@ -64,7 +64,7 @@ import gleam/dynamic/decode as d
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
-import tadpole/error.{type TadpoleError, DecodeFailed}
+import tadpole/error.{type TadpoleError}
 import tadpole/model/decode
 import tadpole/model/guild.{type Guild, type UnavailableGuild}
 import tadpole/model/message.{type Message, type MessageUpdate}
@@ -98,9 +98,11 @@ pub type Event {
   Unknown(name: String, raw: String)
 }
 
-/// Decode one dispatched gateway event. `payload` is the full frame JSON
-/// as `frame.parse` saw it. Envelope and all, `d` included, because the
-/// shard never re-parses.
+/// Decode one dispatched gateway event. `payload` is the frame JSON as
+/// `frame.parse` saw it, envelope and all; the event object is read from
+/// its `d` field. A payload with no `d` is treated as the event object
+/// itself, which is the shape the tests and any replay tool write by
+/// hand.
 ///
 /// Modeled events decode to their variant and fail with DecodeFailed
 /// (event filled in) when Discord's payload does not match. Every other
@@ -114,36 +116,28 @@ pub fn decode(
   case event_name {
     "READY" -> decode_ready(payload)
     "MESSAGE_CREATE" ->
-      case message.from_json(payload) {
+      case decode.from_frame(Some(event_name), payload, message.decoder()) {
         Ok(message) -> Ok(MessageCreate(message))
-        Error(e) -> Error(with_event(event_name, e))
+        Error(e) -> Error(e)
       }
     "MESSAGE_UPDATE" ->
-      case message.update_from_json(payload) {
+      case
+        decode.from_frame(Some(event_name), payload, message.update_decoder())
+      {
         Ok(update) -> Ok(MessageUpdate(update))
-        Error(e) -> Error(with_event(event_name, e))
+        Error(e) -> Error(e)
       }
     "MESSAGE_DELETE" -> decode_message_delete(payload)
     "RESUMED" -> Ok(Resumed)
     "GUILD_CREATE" ->
-      case guild.from_json(payload) {
+      case decode.from_frame(Some(event_name), payload, guild.decoder()) {
         Ok(guild) -> Ok(GuildCreate(guild))
-        Error(e) -> Error(with_event(event_name, e))
+        Error(e) -> Error(e)
       }
     "GUILD_DELETE" ->
-      decode.from_json(Some(event_name), payload, guild.unavailable_decoder())
+      decode.from_frame(Some(event_name), payload, guild.unavailable_decoder())
       |> result.map(GuildDelete)
     _ -> Ok(Unknown(name: event_name, raw: payload))
-  }
-}
-
-/// Fill the event name into a model-level DecodeFailed so the rendered
-/// error says MESSAGE_CREATE instead of "somewhere in a payload".
-fn with_event(event: String, e: TadpoleError) -> TadpoleError {
-  case e {
-    DecodeFailed(_, path, expected, got) ->
-      DecodeFailed(Some(event), path, expected, got)
-    other -> other
   }
 }
 
@@ -154,7 +148,7 @@ fn decode_ready(payload: String) -> Result(Event, TadpoleError) {
     d.success(#(ready_user, guilds))
   }
 
-  case decode.from_json(Some("READY"), payload, decoder) {
+  case decode.from_frame(Some("READY"), payload, decoder) {
     Ok(#(ready_user, guilds)) -> Ok(Ready(ready_user, list.length(guilds)))
     Error(e) -> Error(e)
   }
@@ -172,5 +166,5 @@ fn decode_message_delete(payload: String) -> Result(Event, TadpoleError) {
     d.success(MessageDelete(id: id, channel_id: channel_id, guild_id: guild_id))
   }
 
-  decode.from_json(Some("MESSAGE_DELETE"), payload, decoder)
+  decode.from_frame(Some("MESSAGE_DELETE"), payload, decoder)
 }

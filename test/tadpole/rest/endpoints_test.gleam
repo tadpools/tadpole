@@ -322,6 +322,31 @@ pub fn set_typing_forbidden_maps_to_rest_status_test() {
   |> should.equal("POST /channels/" <> channel <> "/typing")
 }
 
+// A REST body carrying a top-level `d` decodes the message, not the
+// `d`. This is the shape the bug took in production: the gateway path's
+// envelope heuristic was shared with the REST decoders, so a body with a
+// `d` field was silently peeled and the caller got the wrong object.
+
+const message_with_top_level_d = "{\"id\":\"124400000000000009\",\"channel_id\":\"742300000000000001\","
+  <> "\"author\":{\"id\":\"900000000000000125\",\"username\":\"lilypad_bot\"},"
+  <> "\"content\":\"the real message\",\"timestamp\":\"2026-09-07T18:00:00.000000+00:00\","
+  <> "\"d\":{\"id\":\"124400000000000099\",\"content\":\"the decoy\"}}"
+
+pub fn get_message_reads_a_top_level_d_as_data_test() {
+  reset_recorder()
+
+  let assert Ok(msg) =
+    endpoints.get_message_with(
+      client(),
+      transport(message_with_top_level_d),
+      channel_id(channel),
+      message_id(message),
+    )
+
+  ids.message_to_string(msg.id) |> should.equal(message)
+  msg.content |> should.equal("the real message")
+}
+
 // PUT /channels/{id}/messages/{id}/reactions/{emoji}/@me
 
 pub fn add_reaction_puts_an_encoded_unicode_emoji_test() {

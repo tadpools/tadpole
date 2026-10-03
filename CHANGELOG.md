@@ -76,6 +76,18 @@ library did not do yet.
   fresh httpc transport and ignored the bot's, so a Bot built with an
   injected transport would hit the real network for that one call and
   not for the others.
+- `decode.from_json` no longer guesses whether a payload is a gateway
+  envelope. It decoded a bare object, and if the payload happened to
+  carry a top-level `d` key it treated that key as a wrapper and decoded
+  the value inside it. No modelled Discord object sends one, so nothing
+  live was affected, but a REST body is whatever Discord sent: one with a
+  `d` field would have handed the caller a different object with no
+  error, and a message that failed to decode degrades to `Unknown` in the
+  shard, so the wrong answer looks exactly like the right one. The gateway
+  path, which is the one that knows it has an envelope, now says so
+  through a new `decode.from_frame`. Breaking for anyone passing a frame
+  to a model's `from_json`, which is the call the old heuristic encouraged
+  (#37).
 - messages carry their reactions. Discord sends `reactions` on every
   message and `model/message` was dropping the field, so answering "who
   reacted" cost a REST call for data that had already arrived. `Message`

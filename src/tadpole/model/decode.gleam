@@ -9,19 +9,27 @@
 //// Through the model decoders (`user.decoder()`, `message.decoder()`,
 //// etc.) they call `snowflake_id` and `from_json` internally. Directly
 //// when you write a decoder for a new Discord model and need validated
-//// snowflake fields.
+//// snowflake fields. `from_frame` is the gateway path's, used by
+//// `tadpole/gateway/events`.
 ////
-//// ## Internals
+//// ## Two payload shapes, two functions
 ////
-//// `from_json` takes either a bare event object or a full gateway frame
-//// envelope with the event object under `d`, because both shapes arrive
-//// in practice: the shard decodes dispatch frames as the envelope, the
-//// REST paths decode bare response objects.
+//// `from_json` takes a bare object: a REST response body, or an event
+//// object on its own. `from_frame` takes a gateway frame envelope and
+//// decodes the event object under `d`.
+////
+//// They are separate because a shared "does this look like an
+//// envelope" guess is wrong somewhere. Both shapes arrive in practice,
+//// and no model in this library carries a top-level `d` field, so the
+//// guess held. It cannot keep holding: a REST body is whatever Discord
+//// sent, and one that carries a `d` key would have that key treated as
+//// a wrapper to peel, handing the caller a different object with no
+//// error. The gateway path knows it has an envelope, so it says so.
 ////
 //// Internals: `snowflake_id` validates Discord's string ids inside the
 //// decoder pipeline (a non-snowflake string fails with the offending
-//// text in `got`), and `from_json` reports the first failure with a
-//// JSON path. Fields joined by dots, list indices in brackets. See
+//// text in `got`), and both entry points report the first failure with
+//// a JSON path. Fields joined by dots, list indices in brackets. See
 //// also [`tadpole/types/ids`](../types/ids.html) for the constructors
 //// and [`tadpole/error`](../error.html) for the `DecodeFailed` shape.
 
@@ -60,18 +68,20 @@ pub fn snowflake_id(
   }
 }
 
-/// Parse `payload` with `decoder`, folding every failure into
-/// error.DecodeFailed. `event` is the gateway event name when known, for
-/// example Some("MESSAGE_CREATE"); None suits REST responses.
+/// Parse `payload` with `decoder` as a bare object: a REST response
+/// body, or an event object on its own. `event` is the gateway event
+/// name when known, for example Some("MESSAGE_CREATE"); None suits
+/// REST responses.
 ///
-/// The payload may be a bare event object (what the model from_json
-/// helpers and the REST paths get) or a full gateway frame envelope with
-/// the event object under `d` (what frame.parse hands the shard). When
-/// the parsed JSON carries a `d` field, the decoder runs on that inner
-/// value; otherwise it runs on the payload as-is.
+/// A top-level `d` field is **data here, not an envelope**. That is the
+/// whole reason this function is separate from `from_frame`. A REST body
+/// is whatever Discord sent, so if it happens to carry a `d` key then
+/// `d` is a field of the object being decoded rather than a wrapper to
+/// peel off, and decoding it as a wrapper hands the caller the wrong
+/// object with no error to notice.
 ///
-/// The reported path is relative to the event object: fields join with
-/// dots, list indices go in brackets (`author.id`, `mentions[0].username`),
+/// The reported path is relative to the object: fields join with dots,
+/// list indices go in brackets (`author.id`, `mentions[0].username`),
 /// and a payload that is not JSON at all reports `$`. Only the first
 /// problem found is reported. Fix it and re-run to see the next one.
 pub fn from_json(
@@ -79,29 +89,37 @@ pub fn from_json(
   payload: String,
   decoder: d.Decoder(t),
 ) -> Result(t, TadpoleError) {
+  case parse_to_dynamic(event, payload) {
+    Ok(dynamic) -> run_decoder(event, dynamic, decoder)
+    Error(e) -> Error(e)
+  }
+}
+
+/// Parse `payload` as a gateway frame envelope, where the event object
+/// is the value of `d`.
+///
+/// This is the only function here that unwraps an envelope, and it is
+/// for the gateway path only. A payload with no `d` is decoded as-is,
+/// because that is what the typed event tests and any replay tool pass,
+/// and because a real frame always carries `d` anyway, so there is
+/// nothing for strictness to catch here.
+pub fn from_frame(
+  event: Option(String),
+  payload: String,
+  decoder: d.Decoder(t),
+) -> Result(t, TadpoleError) {
+  case parse_to_dynamic(event, payload) {
+    Ok(dynamic) -> run_decoder(event, frame_event_object(dynamic), decoder)
+    Error(e) -> Error(e)
+  }
+}
+
+fn parse_to_dynamic(
+  event: Option(String),
+  payload: String,
+) -> Result(d.Dynamic, TadpoleError) {
   case json.parse(payload, d.dynamic) {
-    Ok(dynamic) ->
-      case d.run(event_object(dynamic), decoder) {
-        Ok(value) -> Ok(value)
-        Error([]) ->
-          // decode.run only fails with at least one error collected, so
-          // this arm is a totality guard, not a reachable case.
-          Error(DecodeFailed(
-            event: event,
-            path: "$",
-            expected: "a payload matching the decoder",
-            got: "no error details",
-          ))
-        Error([first, ..]) -> {
-          let #(expected, got) = describe(first)
-          Error(DecodeFailed(
-            event: event,
-            path: path_text(first.path),
-            expected: expected,
-            got: got,
-          ))
-        }
-      }
+    Ok(dynamic) -> Ok(dynamic)
     Error(json.UnexpectedEndOfInput) -> syntax_error(event, "truncated JSON")
     Error(json.UnexpectedByte(byte)) ->
       syntax_error(event, "invalid byte " <> byte)
@@ -119,12 +137,38 @@ pub fn from_json(
   }
 }
 
-/// The Dynamic the event decoder runs on: the `d` field's value when the
-/// payload is a gateway frame envelope, the payload itself when it is a
-/// bare event object. No event object in this library carries a `d`
-/// field of its own, so the presence of `d` is an envelope, and a null
-/// `d` fails the event decoder honestly at the root.
-fn event_object(dynamic: d.Dynamic) -> d.Dynamic {
+fn run_decoder(
+  event: Option(String),
+  dynamic: d.Dynamic,
+  decoder: d.Decoder(t),
+) -> Result(t, TadpoleError) {
+  case d.run(dynamic, decoder) {
+    Ok(value) -> Ok(value)
+    Error([]) ->
+      // decode.run only fails with at least one error collected, so
+      // this arm is a totality guard, not a reachable case.
+      Error(DecodeFailed(
+        event: event,
+        path: "$",
+        expected: "a payload matching the decoder",
+        got: "no error details",
+      ))
+    Error([first, ..]) -> {
+      let #(expected, got) = describe(first)
+      Error(DecodeFailed(
+        event: event,
+        path: path_text(first.path),
+        expected: expected,
+        got: got,
+      ))
+    }
+  }
+}
+
+/// The event object inside a frame envelope, which is the value of `d`.
+/// A payload with no `d` is its own event object, so the shape a replay
+/// tool or a hand-written test uses still decodes.
+fn frame_event_object(dynamic: d.Dynamic) -> d.Dynamic {
   let envelope_decoder = {
     use inner <- d.field("d", d.dynamic)
     d.success(inner)
