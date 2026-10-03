@@ -40,12 +40,14 @@
 //// without buying type safety anyone uses yet. Every field the library
 //// itself dereferences (`id`, `channel_id`, `guild_id`, `webhook_id`,
 //// mention role ids) is a typed ID that fails the decode if it is not
-//// a snowflake.
+//// a snowflake. A reaction's custom emoji id is typed for the same
+//// reason, in [`tadpole/model/emoji`](../model/emoji.html).
 
 import gleam/dynamic/decode as d
 import gleam/option.{type Option, None}
 import tadpole/error.{type TadpoleError}
 import tadpole/model/decode
+import tadpole/model/emoji.{type Reaction}
 import tadpole/model/user.{type User}
 import tadpole/types/ids.{
   type ChannelId, type GuildId, type MessageId, type RoleId, type WebhookId,
@@ -72,6 +74,11 @@ pub type Message {
     mention_role_ids: List(RoleId),
     attachments: List(Attachment),
     pinned: Bool,
+    /// The emoji reactions on this message, as Discord counted them.
+    /// Empty is the normal case and also what a payload without a
+    /// `reactions` key decodes to. Reading this is cheaper than calling
+    /// `get_reaction_users`, which is what you want for one emoji.
+    reactions: List(Reaction),
     /// Set when a webhook sent the message.
     webhook_id: Option(WebhookId),
     /// Discord's raw MESSAGE type integer: 0 DEFAULT, 1 RECIPIENT_ADD,
@@ -128,6 +135,11 @@ pub fn decoder() -> d.Decoder(Message) {
     d.list(attachment_decoder()),
   )
   use pinned <- d.optional_field("pinned", False, d.bool)
+  use reactions <- d.optional_field(
+    "reactions",
+    [],
+    emoji.reaction_list_decoder(),
+  )
   use webhook_id <- d.optional_field(
     "webhook_id",
     None,
@@ -148,6 +160,7 @@ pub fn decoder() -> d.Decoder(Message) {
     mention_role_ids: mention_role_ids,
     attachments: attachments,
     pinned: pinned,
+    reactions: reactions,
     webhook_id: webhook_id,
     message_type: message_type,
   ))

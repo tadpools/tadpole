@@ -76,6 +76,21 @@ library did not do yet.
   fresh httpc transport and ignored the bot's, so a Bot built with an
   injected transport would hit the real network for that one call and
   not for the others.
+- messages carry their reactions. Discord sends `reactions` on every
+  message and `model/message` was dropping the field, so answering "who
+  reacted" cost a REST call for data that had already arrived. `Message`
+  now has `reactions: List(Reaction)`, and `model/emoji` gained the two
+  shapes that arrive rather than the one that is sent: `PartialEmoji`
+  (a null `id` for a standard emoji, and a null `name`, which the docs
+  scope to reaction objects, for a custom emoji since deleted from its
+  guild) and `Reaction` (count, the normal/burst split flattened out of
+  `count_details`, `me`, `me_burst`, `burst_colors`). `emoji.to_request`
+  turns a read emoji back into one you can send, so reacting with what
+  you just read is one call. Empty is the normal case, and a payload
+  with no `reactions` key decodes to an empty list rather than failing.
+  Adding a field to a public record is breaking only for code that
+  pattern matches it exhaustively, and no pre-publish release promises
+  anything between versions.
 - typing indicators: `endpoints.set_typing` is the bare route, and
   `bot.with_typing(channel, work)` is the version worth using. Discord's
   indicator expires after 10 seconds and the route allows five calls per

@@ -76,6 +76,34 @@ pub fn fixture_message_create_full_decodes_test() {
   edited |> should.equal("2026-09-09T12:02:00.000000+00:00")
 }
 
+pub fn fixture_message_create_with_reactions_decodes_test() {
+  let payload = fixtures.must_load("message_create_with_reactions.json")
+  let assert Ok(frame) = frame.parse(payload)
+
+  let assert Ok(events.MessageCreate(message)) =
+    events.decode("MESSAGE_CREATE", frame.raw)
+
+  let assert [fire, custom] = message.reactions
+
+  // A standard emoji arrives with a null id and its own characters.
+  fire.emoji.id |> should.equal(None)
+  let assert Some(standard_name) = fire.emoji.name
+  standard_name |> should.equal("🔥")
+  fire.count |> should.equal(3)
+  fire.normal_count |> should.equal(2)
+  fire.burst_count |> should.equal(1)
+  fire.me |> should.be_false
+
+  // A custom one keeps both halves, and animated arrives here because
+  // this is a reaction context.
+  let assert Some(custom_id) = custom.emoji.id
+  ids.emoji_to_string(custom_id) |> should.equal("700000000000000001")
+  custom.emoji.name |> should.equal(Some("lilypad"))
+  custom.emoji.animated |> should.be_true
+  custom.me |> should.be_true
+  custom.burst_colors |> should.equal(["#5865F2"])
+}
+
 fn role_a() -> ids.RoleId {
   let assert Ok(id) = ids.role_id("500000000000000001")
   id

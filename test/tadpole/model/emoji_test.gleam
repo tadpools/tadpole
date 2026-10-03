@@ -1,14 +1,29 @@
-//// Tests for the reaction emoji type. The encoding is the load-bearing
-//// part: Discord answers `10014: Unknown Emoji` for a path segment that
-//// is not URL encoded, and that error names the emoji rather than the
-//// encoding, so a wrong one reads like the wrong emoji. These pin the
-//// exact bytes that go on the wire.
+//// Tests for the reaction emoji type and the emoji shapes Discord sends
+//// back. The encoding is the load-bearing part of the request side:
+//// Discord answers `10014: Unknown Emoji` for a path segment that is not
+//// URL encoded, and that error names the emoji rather than the encoding,
+//// so a wrong one reads like the wrong emoji. These pin the exact bytes
+//// that go on the wire, and the decode side's two nullable fields.
 
+import gleam/dynamic/decode as d
+import gleam/json
+import gleam/option.{None, Some}
 import gleam/string
 import gleeunit/should
 import tadpole/model/emoji
 import tadpole/types/ids
 import tadpole/types/snowflake
+
+/// Run a decoder over a JSON string, the same path model decoding takes.
+fn run(
+  decoder: d.Decoder(a),
+  payload: String,
+) -> Result(a, List(d.DecodeError)) {
+  case json.parse(payload, d.dynamic) {
+    Ok(dynamic) -> d.run(dynamic, decoder)
+    Error(_) -> panic as "emoji_test: the test payload is not valid JSON"
+  }
+}
 
 fn emoji_id(value: String) -> ids.EmojiId {
   let assert Ok(id) = ids.emoji_id(value)
@@ -17,6 +32,13 @@ fn emoji_id(value: String) -> ids.EmojiId {
 
 fn custom() -> emoji.Emoji {
   emoji.Custom(name: "lilypad", id: emoji_id("740000000000000001"))
+}
+
+fn length_of(list: List(a)) -> Int {
+  case list {
+    [] -> 0
+    [_, ..rest] -> 1 + length_of(rest)
+  }
 }
 
 // path segments
@@ -95,4 +117,167 @@ pub fn custom_id_rejects_a_future_timestamp_test() {
   |> should.equal(
     Error(ids.InvalidId("99999999999999999999", snowflake.TooFarInFuture)),
   )
+}
+
+// the shape Discord sends back
+
+pub fn partial_standard_emoji_has_no_id_test() {
+  // Discord sends "id": null for a standard emoji rather than leaving
+  // the key out, so this exercises the null path and not the absent one.
+  let assert Ok(partial) =
+    run(emoji.partial_decoder(), "{\"id\":null,\"name\":\"🔥\"}")
+
+  partial.id |> should.equal(None)
+  partial.name |> should.equal(Some("🔥"))
+  partial.animated |> should.be_false
+}
+
+pub fn partial_custom_emoji_keeps_its_id_and_name_test() {
+  let assert Ok(partial) =
+    run(
+      emoji.partial_decoder(),
+      "{\"id\":\"740000000000000001\",\"name\":\"lilypad\",\"animated\":true}",
+    )
+
+  let assert Some(id) = partial.id
+  ids.emoji_to_string(id) |> should.equal("740000000000000001")
+  partial.name |> should.equal(Some("lilypad"))
+  partial.animated |> should.be_true
+}
+
+pub fn partial_emoji_tolerates_a_null_name_test() {
+  // The docs scope a null name to reaction emoji: a custom emoji deleted
+  // from its guild still turns up, nameless.
+  let assert Ok(partial) =
+    run(
+      emoji.partial_decoder(),
+      "{\"id\":\"740000000000000001\",\"name\":null}",
+    )
+
+  partial.id |> should.not_equal(None)
+  partial.name |> should.equal(None)
+}
+
+pub fn partial_emoji_rejects_a_non_snowflake_id_test() {
+  let assert Error(_errors) =
+    run(emoji.partial_decoder(), "{\"id\":\"nope\",\"name\":\"x\"}")
+
+  Nil
+}
+
+pub fn partial_absent_id_reads_the_same_as_a_null_one_test() {
+  // Both are "no id", so both are None, which is what a caller matching
+  // on a standard emoji needs to be true.
+  let assert Ok(absent) = run(emoji.partial_decoder(), "{\"name\":\"🔥\"}")
+  let assert Ok(explicit) =
+    run(emoji.partial_decoder(), "{\"id\":null,\"name\":\"🔥\"}")
+
+  absent.id |> should.equal(explicit.id)
+}
+
+// turning a read emoji back into a request
+
+pub fn to_request_on_a_standard_emoji_test() {
+  let assert Ok(partial) =
+    run(emoji.partial_decoder(), "{\"id\":null,\"name\":\"🔥\"}")
+
+  let assert Some(request) = emoji.to_request(partial)
+  emoji.to_text(request) |> should.equal("🔥")
+}
+
+pub fn to_request_on_a_custom_emoji_test() {
+  let assert Ok(partial) =
+    run(
+      emoji.partial_decoder(),
+      "{\"id\":\"740000000000000001\",\"name\":\"lilypad\"}",
+    )
+
+  let assert Some(request) = emoji.to_request(partial)
+  emoji.to_text(request) |> should.equal("lilypad:740000000000000001")
+}
+
+pub fn to_request_on_a_nameless_emoji_is_none_test() {
+  // Nothing to send: no name to build a Custom from and no characters
+  // for a Unicode. This is the deleted-custom-emoji case and the honest
+  // answer is that there is no request to make.
+  let assert Ok(partial) =
+    run(emoji.partial_decoder(), "{\"id\":\"740000000000000001\"}")
+
+  emoji.to_request(partial) |> should.equal(None)
+}
+
+// reactions
+
+pub fn reaction_reads_the_count_split_test() {
+  let assert Ok(reaction) =
+    run(
+      emoji.reaction_decoder(),
+      "{\"count\":3,\"count_details\":{\"burst\":1,\"normal\":2},\"me\":true,\"emoji\":{\"id\":null,\"name\":\"🔥\"}}",
+    )
+
+  reaction.count |> should.equal(3)
+  reaction.burst_count |> should.equal(1)
+  reaction.normal_count |> should.equal(2)
+  reaction.me |> should.be_true
+  reaction.me_burst |> should.be_false
+  reaction.burst_colors |> should.equal([])
+}
+
+pub fn reaction_without_count_details_keeps_count_as_the_truth_test() {
+  // An absent split reads 0 and 0 rather than a guessed proportion, and
+  // count still carries the whole number.
+  let assert Ok(reaction) =
+    run(
+      emoji.reaction_decoder(),
+      "{\"count\":5,\"emoji\":{\"id\":null,\"name\":\"🔥\"}}",
+    )
+
+  reaction.count |> should.equal(5)
+  reaction.burst_count |> should.equal(0)
+  reaction.normal_count |> should.equal(0)
+}
+
+pub fn reaction_with_null_count_details_behaves_like_an_absent_one_test() {
+  let assert Ok(reaction) =
+    run(
+      emoji.reaction_decoder(),
+      "{\"count\":5,\"count_details\":null,\"emoji\":{\"id\":null,\"name\":\"🔥\"}}",
+    )
+
+  reaction.count |> should.equal(5)
+  reaction.burst_count |> should.equal(0)
+}
+
+pub fn reaction_keeps_burst_colors_when_present_test() {
+  let assert Ok(reaction) =
+    run(
+      emoji.reaction_decoder(),
+      "{\"count\":1,\"me_burst\":true,\"burst_colors\":[\"#5865F2\",\"#EB459E\"],\"emoji\":{\"id\":null,\"name\":\"🔥\"}}",
+    )
+
+  reaction.me_burst |> should.be_true
+  reaction.burst_colors |> should.equal(["#5865F2", "#EB459E"])
+}
+
+pub fn reaction_requires_a_count_test() {
+  let assert Error(_errors) =
+    run(emoji.reaction_decoder(), "{\"emoji\":{\"id\":null,\"name\":\"🔥\"}}")
+
+  Nil
+}
+
+pub fn reaction_requires_an_emoji_test() {
+  let assert Error(_errors) = run(emoji.reaction_decoder(), "{\"count\":1}")
+
+  Nil
+}
+
+pub fn reaction_list_decoder_reads_several_test() {
+  let assert Ok(reactions) =
+    run(
+      emoji.reaction_list_decoder(),
+      "[{\"count\":1,\"emoji\":{\"id\":null,\"name\":\"🔥\"}},{\"count\":2,\"emoji\":{\"id\":null,\"name\":\"🎉\"}}]",
+    )
+
+  reactions |> length_of |> should.equal(2)
 }
