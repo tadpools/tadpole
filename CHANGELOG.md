@@ -76,6 +76,17 @@ library did not do yet.
   fresh httpc transport and ignored the bot's, so a Bot built with an
   injected transport would hit the real network for that one call and
   not for the others.
+- typing indicators: `endpoints.set_typing` is the bare route, and
+  `bot.with_typing(channel, work)` is the version worth using. Discord's
+  indicator expires after 10 seconds and the route allows five calls per
+  ten, so `with_typing` posts once, refreshes every 8 seconds while your
+  work runs, and stops on its own. Refreshing for you is the part every
+  hand-rolled version gets wrong, and the docs also say plainly that bots
+  generally should not use this route, which is why the wrapper keeps the
+  lifetime tied to the work rather than handing back a handle to forget.
+  Returns whatever `work` returns, so it composes with a Result. A refused
+  indicator is logged, not raised: the indicator is cosmetic and failing
+  the operation over it would be the wrong trade.
 - reactions: `add_reaction`, `remove_own_reaction` and `get_reaction_users`
   on `rest/endpoints` and on `bot`. The emoji is a new
   `tadpole/model/emoji` `Emoji`, either `Unicode` characters or a

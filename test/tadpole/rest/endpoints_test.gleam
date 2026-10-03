@@ -280,6 +280,48 @@ pub fn get_messages_default_limit_is_discords_documented_default_test() {
   endpoints.default_history_limit |> should.equal(50)
 }
 
+// POST /channels/{id}/typing
+
+pub fn set_typing_posts_to_the_typing_route_test() {
+  reset_recorder()
+
+  let assert Ok(Nil) =
+    endpoints.set_typing_with(
+      client(),
+      no_content_transport(),
+      channel_id(channel),
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.method |> should.equal(http.Post)
+  sent.path |> should.equal("/api/v10/channels/" <> channel <> "/typing")
+  // The route takes no JSON params, so the body is empty and there is no
+  // query to keep out of the rate-limit key.
+  sent.body |> should.equal("")
+  sent.query |> should.equal(None)
+}
+
+pub fn set_typing_forbidden_maps_to_rest_status_test() {
+  reset_recorder()
+
+  let assert Error(error.RestStatus(route, 403, Some(50_013), _)) =
+    endpoints.set_typing_with(
+      client(),
+      fn(request) {
+        record_request(request)
+        Ok(response.Response(
+          status: 403,
+          headers: [],
+          body: "{\"message\": \"Missing Permissions\", \"code\": 50013}",
+        ))
+      },
+      channel_id(channel),
+    )
+
+  error.route_to_string(route)
+  |> should.equal("POST /channels/" <> channel <> "/typing")
+}
+
 // PUT /channels/{id}/messages/{id}/reactions/{emoji}/@me
 
 pub fn add_reaction_puts_an_encoded_unicode_emoji_test() {

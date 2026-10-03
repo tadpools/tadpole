@@ -440,6 +440,45 @@ fn reaction_page(users: List(User)) -> ReactionUsers {
   ReactionUsers(users: users, next_after: next_after)
 }
 
+/// POST /channels/{channel_id}/typing, show a typing indicator.
+///
+/// The indicator expires after 10 seconds, and the docs are explicit
+/// that bots generally should **not** use this route, only for work that
+/// takes a few seconds. `bot.with_typing` is the version that respects
+/// both: it refreshes while your work runs and stops on its own. Reach
+/// for this directly only when you are managing the refresh yourself.
+///
+/// Fails with RestStatus on non-2xx. 403 means the bot cannot post in
+/// that channel, 404 means the channel id is wrong.
+pub fn set_typing(
+  client: rest.RestClient,
+  channel_id: ChannelId,
+) -> Result(Nil, TadpoleError) {
+  set_typing_with(
+    client,
+    execute.httpc_transport(client.timeout_ms),
+    channel_id,
+  )
+}
+
+/// `set_typing` over an injected transport.
+pub fn set_typing_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+) -> Result(Nil, TadpoleError) {
+  // The route takes no JSON params, so the body is empty.
+  let request =
+    rest.post(
+      "/channels/" <> ids.channel_to_string(channel_id) <> "/typing",
+      "",
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
 /// GET /users/@me, the bot's own user object.
 ///
 /// Fails with RestStatus when Discord answers non-2xx (401 means the

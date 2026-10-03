@@ -294,6 +294,127 @@ pub fn get_reaction_users_delegates_with_the_query_test() {
   first.username |> should.equal("quackling")
 }
 
+// with_typing
+
+pub fn with_typing_returns_what_the_work_returned_test() {
+  reset_recorder()
+
+  let answer =
+    bot.with_typing(
+      hand_built_bot(transport_no_content()),
+      channel_id(channel),
+      fn() { Ok("expensive answer") },
+    )
+
+  answer |> should.equal(Ok("expensive answer"))
+
+  // The indicator went out before the work ran.
+  let assert [sent_request] = recorded_requests()
+  sent_request.path
+  |> should.equal("/api/v10/channels/" <> channel <> "/typing")
+}
+
+pub fn with_typing_returns_non_result_values_too_test() {
+  reset_recorder()
+
+  let answer =
+    bot.with_typing(
+      hand_built_bot(transport_no_content()),
+      channel_id(channel),
+      fn() { 41 + 1 },
+    )
+
+  answer |> should.equal(42)
+}
+
+pub fn with_typing_runs_the_work_even_when_the_indicator_is_refused_test() {
+  // A refused cosmetic POST must not fail the operation. Discord says
+  // bots should rarely use this route at all, so losing the indicator is
+  // not worth losing the work over.
+  reset_recorder()
+  let refused = fn(request) {
+    record_request(request)
+    Ok(response.Response(status: 403, headers: [], body: "{}"))
+  }
+  let ran = process.new_subject()
+
+  let answer =
+    bot.with_typing(hand_built_bot(refused), channel_id(channel), fn() {
+      process.send(ran, "ran")
+      "still finished"
+    })
+
+  answer |> should.equal("still finished")
+  let assert Ok("ran") = process.receive(ran, 500)
+  Nil
+}
+
+pub fn with_typing_does_not_take_the_caller_down_test() {
+  // The trap this guards. process.kill is an untrappable exit that
+  // travels along links, so killing the still-linked refresher would
+  // kill this test process too. Reaching the assertion at all is the
+  // assertion.
+  reset_recorder()
+
+  let answer =
+    bot.with_typing(
+      hand_built_bot(transport_no_content()),
+      channel_id(channel),
+      fn() { "survived" },
+    )
+
+  answer |> should.equal("survived")
+}
+
+pub fn with_typing_refresher_stops_after_a_refusal_test() {
+  // A refusal means the refresher gives up rather than asking again
+  // every eight seconds. With work long enough for the refresher to
+  // have run, the request count settles at the caller's post plus one
+  // refresher post and no more.
+  reset_recorder()
+  let refused = fn(request) {
+    record_request(request)
+    Ok(response.Response(status: 403, headers: [], body: "{}"))
+  }
+
+  let _ =
+    bot.with_typing(hand_built_bot(refused), channel_id(channel), fn() {
+      // Generous against a canned transport, so the refresher has
+      // certainly started by the time this returns.
+      process.sleep(200)
+      Nil
+    })
+
+  process.sleep(200)
+  let requests = recorded_requests()
+  { length_of(requests) >= 1 } |> should.be_true
+  { length_of(requests) <= 2 } |> should.be_true
+}
+
+pub fn with_typing_refresher_is_gone_when_work_returns_test() {
+  // The indicator stops when the work does. Nothing keeps posting after
+  // with_typing returns.
+  reset_recorder()
+  let _ =
+    bot.with_typing(
+      hand_built_bot(transport_no_content()),
+      channel_id(channel),
+      fn() { Nil },
+    )
+
+  let settled = length_of(recorded_requests())
+  // Well under the 8s refresh interval, so nothing new can arrive.
+  process.sleep(300)
+  length_of(recorded_requests()) |> should.equal(settled)
+}
+
+fn length_of(list: List(a)) -> Int {
+  case list {
+    [] -> 0
+    [_, ..rest] -> 1 + length_of(rest)
+  }
+}
+
 // stop
 
 pub fn stop_signals_the_shard_test() {
