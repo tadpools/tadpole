@@ -4,7 +4,8 @@
 //// The same Bot answers REST calls over its own transport:
 //// `send_message`, `reply`, `get_channel`, `get_message`, `get_messages`,
 //// `add_reaction`, `remove_own_reaction`, `get_reaction_users`,
-//// `edit_message`, `delete_message`, and `stop` closes the gateway.
+//// `edit_message`, `delete_message`, and `with_typing` shows a typing
+//// indicator for as long as your work runs. `stop` closes the gateway.
 //// Multi-shard fleets, handler supervision, and a stop that ends the
 //// program are later work. A handler crash takes the whole bot down,
 //// which beats a silently dead bot.
@@ -80,11 +81,17 @@
 ////   needs no locks. Nothing else ever touches it.
 //// - A `Bot` is a plain record, safe to pass to other processes or send
 ////   in messages. `send_message`, `reply`, the `get_*` helpers,
-////   `edit_message`, `delete_message`, and `stop` may be called from any
-////   process; each REST call is independent and blocks its calling
-////   process for the round trip (plus retries and rate-limit sleeps).
-////   Every one of them runs over the bot's own transport, which is what
-////   makes a hand-built `Bot` in a test behave the same as a real one.
+////   `edit_message`, `delete_message`, `with_typing`, and `stop` may be
+////   called from any process; each REST call is independent and blocks
+////   its calling process for the round trip (plus retries and
+////   rate-limit sleeps). Every one of them runs over the bot's own
+////   transport, which is what makes a hand-built `Bot` in a test behave
+////   the same as a real one.
+//// - `with_typing` is the one exception to "each call is independent":
+////   it spawns a refresher process for the duration of the work you
+////   give it. That process is linked to the caller and unlinked again
+////   before it is killed, so a crash in your work cleans it up and the
+////   normal path cannot take the caller down. See its own doc.
 //// - The dispatcher owns the event and lifecycle subjects and is the
 ////   only process that can receive on them. Everyone else is send-only.
 ////
@@ -167,6 +174,11 @@ import tadpole/rest.{type RestClient}
 import tadpole/rest/endpoints
 import tadpole/rest/execute.{type Transport}
 import tadpole/types/ids.{type ChannelId, type MessageId, type UserId}
+
+/// How long between typing refreshes. Discord's indicator expires after
+/// 10 seconds and the route allows five calls per ten seconds, so eight
+/// keeps it visible without approaching either limit.
+const typing_refresh_ms = 8000
 
 /// The only gateway URL this milestone speaks: gateway v10, JSON frames.
 const gateway_url = "wss://gateway.discord.gg/?v=10&encoding=json"
@@ -425,6 +437,94 @@ pub fn get_reaction_users(
     after,
     limit,
   )
+}
+
+/// Show a typing indicator for exactly as long as `work` runs, then
+/// stop.
+///
+/// Discord's indicator expires after 10 seconds, and the docs are
+/// explicit that bots generally should not use this route. It is here
+/// for the case they do describe: a command whose work takes a few
+/// seconds. Refreshing for you and stopping on its own is the part
+/// every hand-rolled version gets wrong, so the wrapper does it.
+///
+///     case bot.with_typing(tadbot, message.channel_id, fn() {
+///       expensive_thing(message)
+///     }) {
+///       Ok(answer) -> bot.send_message(tadbot, message.channel_id, answer)
+///       Error(e) -> bot.send_message(tadbot, message.channel_id, "that failed")
+///     }
+///
+/// Returns whatever `work` returns, so it composes with a Result or
+/// anything else.
+///
+/// Concurrency: `work` runs in the calling process, so a handler's usual
+/// sequential delivery still holds. One refresher process is linked to
+/// the caller for the duration, which means a crash inside `work` takes
+/// the refresher down instead of leaving it posting for the rest of the
+/// bot's life. Nothing is shared and there is no handle to leak or
+/// forget.
+///
+/// A refused indicator is logged and `work` runs anyway. The indicator
+/// is cosmetic and Discord says bots should rarely use it, so failing the
+/// whole operation over a cosmetic POST would be the wrong trade.
+pub fn with_typing(bot: Bot, channel_id: ChannelId, work: fn() -> a) -> a {
+  // The first post is the caller's to make and log at Warn, so a refused
+  // indicator is visible without the refresher's Debug lines repeating it.
+  let _ = post_typing(bot, channel_id, logging.Warning)
+  // proc_lib:spawn_link, so a crash in work takes the refresher too.
+  let refresher = process.spawn(fn() { refresh_typing(bot, channel_id) })
+  let outcome = work()
+  // Unlink before killing. process.kill is an untrappable exit that
+  // travels along links, so killing a still-linked process would take
+  // this process down with it. Unlinking first closes that.
+  process.unlink(refresher)
+  process.kill(refresher)
+  outcome
+}
+
+/// Re-post the indicator until it is refused. Discord allows five of
+/// these per ten seconds and the indicator lives 10 seconds, so one
+/// every eight stays visible and stays well inside the limit.
+fn refresh_typing(bot: Bot, channel_id: ChannelId) -> Nil {
+  case post_typing(bot, channel_id, logging.Debug) {
+    True -> {
+      process.sleep(typing_refresh_ms)
+      refresh_typing(bot, channel_id)
+    }
+    // Stop rather than retry. A refusal is a permission or a rate limit,
+    // and neither improves by being asked again in eight seconds.
+    False -> Nil
+  }
+}
+
+/// One indicator post. True when Discord took it. A failure is a short
+/// log line rather than an error for the caller to handle: the bot
+/// module's other lifecycle logs are deliberately short for the same
+/// reason, so this carries the status and not the rendered prose.
+fn post_typing(
+  bot: Bot,
+  channel_id: ChannelId,
+  level: logging.LogLevel,
+) -> Bool {
+  case endpoints.set_typing_with(bot.rest, bot.transport, channel_id) {
+    Ok(_) -> True
+    Error(e) -> {
+      logging.log(
+        level,
+        "bot: typing indicator not shown (" <> typing_failure_reason(e) <> ")",
+      )
+      False
+    }
+  }
+}
+
+fn typing_failure_reason(e: TadpoleError) -> String {
+  case e {
+    error.RestStatus(_, status, _, _) -> "HTTP " <> int.to_string(status)
+    error.RateLimited(..) -> "rate limited"
+    _ -> "transport failure, status 0"
+  }
 }
 
 /// Close the gateway: sends the shard actor its Stop message.
