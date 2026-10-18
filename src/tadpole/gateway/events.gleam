@@ -67,6 +67,7 @@ import gleam/result
 import tadpole/error.{type TadpoleError}
 import tadpole/model/decode
 import tadpole/model/guild.{type Guild, type UnavailableGuild}
+import tadpole/model/interaction.{type Interaction}
 import tadpole/model/message.{type Message, type MessageUpdate}
 import tadpole/model/user.{type User}
 import tadpole/types/ids.{type ChannelId, type GuildId, type MessageId}
@@ -92,6 +93,8 @@ pub type Event {
   /// GUILD_DELETE: the payload shape is the `unavailable: true` object
   /// GUILD_DELETE carries; only the guild id is guaranteed.
   GuildDelete(unavailable: UnavailableGuild)
+  /// INTERACTION_CREATE: a slash command or component invocation.
+  InteractionCreate(interaction: Interaction)
   /// Any event this version does not model, known or not. Name and raw
   /// payload are kept so callers can log, count, or hand-off; nothing
   /// here is ever a crash.
@@ -135,8 +138,19 @@ pub fn decode(
         Error(e) -> Error(e)
       }
     "GUILD_DELETE" ->
-      decode.from_frame(Some(event_name), payload, guild.unavailable_decoder())
+      decode.from_frame(
+        Some("GUILD_DELETE"),
+        payload,
+        guild.unavailable_decoder(),
+      )
       |> result.map(GuildDelete)
+    "INTERACTION_CREATE" ->
+      decode.from_frame(
+        Some("INTERACTION_CREATE"),
+        payload,
+        interaction.decoder(),
+      )
+      |> result.map(InteractionCreate)
     _ -> Ok(Unknown(name: event_name, raw: payload))
   }
 }

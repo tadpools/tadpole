@@ -92,6 +92,8 @@
 //// - [`tadpole/model/message`](../model/message.html) what comes back
 
 import gleam/dynamic/decode as d
+import gleam/http
+import gleam/http/request
 import gleam/int
 import gleam/json
 import gleam/list
@@ -99,16 +101,24 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import tadpole/error.{type BulkDeleteReason, type TadpoleError}
 import tadpole/model/channel.{type Channel}
+import tadpole/model/component.{type Component}
 import tadpole/model/decode
+import tadpole/model/embed.{type Embed}
 /// Imported as a bare function rather than called as `emoji.something`,
 /// because the route functions all take a parameter named `emoji` and a
 /// local of that name would shadow the module.
 import tadpole/model/emoji.{type Emoji, to_path_segment}
+import tadpole/model/file.{type File}
 import tadpole/model/message.{type Message}
 import tadpole/model/user.{type User}
 import tadpole/rest
-import tadpole/rest/execute.{type Transport}
-import tadpole/types/ids.{type ChannelId, type MessageId, type UserId}
+import tadpole/rest/execute.{type Transport, type TransportBits}
+import tadpole/rest/upload
+import tadpole/types/ids.{
+  type ApplicationId, type ChannelId, type InteractionId, type MessageId,
+  type UserId,
+}
+import tadpole/user_agent
 
 /// Which slice of a channel's history to read.
 ///
@@ -723,6 +733,54 @@ pub fn send_message_with(
   }
 }
 
+pub fn send_message_with_components_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  content: String,
+  components: List(Component),
+) -> Result(Message, TadpoleError) {
+  let body =
+    json.object([
+      #("content", json.string(content)),
+      #("components", json.array(components, component.to_json)),
+    ])
+    |> json.to_string
+  let request =
+    rest.post(
+      "/channels/" <> ids.channel_to_string(channel_id) <> "/messages",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(response) -> message.from_json(response.body)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn send_message_with_embeds_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  content: String,
+  embeds: List(Embed),
+) -> Result(Message, TadpoleError) {
+  let body =
+    json.object([
+      #("content", json.string(content)),
+      #("embeds", json.array(embeds, embed.to_json)),
+    ])
+    |> json.to_string
+  let request =
+    rest.post(
+      "/channels/" <> ids.channel_to_string(channel_id) <> "/messages",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(response) -> message.from_json(response.body)
+    Error(e) -> Error(e)
+  }
+}
+
 /// POST /channels/{channel_id}/messages with a message_reference.
 /// Discord's reply. The replied-to message shows the reference in the
 /// client; the returned message's `message_type` is 19 (REPLY).
@@ -752,6 +810,37 @@ pub fn reply_with(
   let body =
     json.object([
       #("content", json.string(content)),
+      #(
+        "message_reference",
+        json.object([
+          #("message_id", json.string(ids.message_to_string(message_id))),
+        ]),
+      ),
+    ])
+    |> json.to_string
+  let request =
+    rest.post(
+      "/channels/" <> ids.channel_to_string(channel_id) <> "/messages",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(response) -> message.from_json(response.body)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn reply_with_embeds_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  content: String,
+  embeds: List(Embed),
+) -> Result(Message, TadpoleError) {
+  let body =
+    json.object([
+      #("content", json.string(content)),
+      #("embeds", json.array(embeds, embed.to_json)),
       #(
         "message_reference",
         json.object([
@@ -816,6 +905,34 @@ pub fn edit_message_with(
   }
 }
 
+pub fn edit_message_with_embeds_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  new_content: String,
+  embeds: List(Embed),
+) -> Result(Message, TadpoleError) {
+  let body =
+    json.object([
+      #("content", json.string(new_content)),
+      #("embeds", json.array(embeds, embed.to_json)),
+    ])
+    |> json.to_string
+  let request =
+    rest.patch(
+      "/channels/"
+        <> ids.channel_to_string(channel_id)
+        <> "/messages/"
+        <> ids.message_to_string(message_id),
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(response) -> message.from_json(response.body)
+    Error(e) -> Error(e)
+  }
+}
+
 /// DELETE /channels/{channel_id}/messages/{message_id}. Deletes a
 /// message. The bot can delete its own messages, or any message in a
 /// channel where it has Manage Messages.
@@ -852,6 +969,251 @@ pub fn delete_message_with(
     )
   case execute.send(client, request, transport) {
     Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn respond_interaction_with(
+  client: rest.RestClient,
+  transport: Transport,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  content: String,
+) -> Result(Nil, TadpoleError) {
+  let request =
+    rest.post(
+      "/interactions/"
+        <> ids.interaction_to_string(interaction_id)
+        <> "/"
+        <> interaction_token
+        <> "/callback",
+      json.object([
+        #("type", json.int(4)),
+        #("data", json.object([#("content", json.string(content))])),
+      ])
+        |> json.to_string,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn respond_interaction_with_embeds_with(
+  client: rest.RestClient,
+  transport: Transport,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  content: String,
+  embeds: List(Embed),
+) -> Result(Nil, TadpoleError) {
+  let body =
+    json.object([
+      #("type", json.int(4)),
+      #(
+        "data",
+        json.object([
+          #("content", json.string(content)),
+          #("embeds", json.array(embeds, embed.to_json)),
+        ]),
+      ),
+    ])
+    |> json.to_string
+  let request =
+    rest.post(
+      "/interactions/"
+        <> ids.interaction_to_string(interaction_id)
+        <> "/"
+        <> interaction_token
+        <> "/callback",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn respond_interaction_with_components_with(
+  client: rest.RestClient,
+  transport: Transport,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  content: String,
+  components: List(Component),
+) -> Result(Nil, TadpoleError) {
+  let body =
+    json.object([
+      #("type", json.int(4)),
+      #(
+        "data",
+        json.object([
+          #("content", json.string(content)),
+          #("components", json.array(components, component.to_json)),
+        ]),
+      ),
+    ])
+    |> json.to_string
+  let request =
+    rest.post(
+      "/interactions/"
+        <> ids.interaction_to_string(interaction_id)
+        <> "/"
+        <> interaction_token
+        <> "/callback",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn defer_interaction_with(
+  client: rest.RestClient,
+  transport: Transport,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  ephemeral: Bool,
+) -> Result(Nil, TadpoleError) {
+  let flags = case ephemeral {
+    True -> 64
+    False -> 0
+  }
+  let body =
+    json.object([
+      #("type", json.int(5)),
+      #("data", json.object([#("flags", json.int(flags))])),
+    ])
+    |> json.to_string
+  let request =
+    rest.post(
+      "/interactions/"
+        <> ids.interaction_to_string(interaction_id)
+        <> "/"
+        <> interaction_token
+        <> "/callback",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn followup_interaction_with(
+  client: rest.RestClient,
+  transport: Transport,
+  application_id: ApplicationId,
+  interaction_token: String,
+  content: String,
+) -> Result(Nil, TadpoleError) {
+  let request =
+    rest.post(
+      "/webhooks/"
+        <> ids.application_to_string(application_id)
+        <> "/"
+        <> interaction_token,
+      json.object([#("content", json.string(content))]) |> json.to_string,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn create_global_command_with(
+  client: rest.RestClient,
+  transport: Transport,
+  application_id: ApplicationId,
+  body: String,
+) -> Result(Nil, TadpoleError) {
+  let request =
+    rest.post(
+      "/applications/"
+        <> ids.application_to_string(application_id)
+        <> "/commands",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn create_guild_command_with(
+  client: rest.RestClient,
+  transport: Transport,
+  application_id: ApplicationId,
+  guild_id: ids.GuildId,
+  body: String,
+) -> Result(Nil, TadpoleError) {
+  let request =
+    rest.post(
+      "/applications/"
+        <> ids.application_to_string(application_id)
+        <> "/guilds/"
+        <> ids.guild_to_string(guild_id)
+        <> "/commands",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn edit_original_interaction_response_with(
+  client: rest.RestClient,
+  transport: Transport,
+  application_id: ApplicationId,
+  interaction_token: String,
+  content: String,
+) -> Result(Nil, TadpoleError) {
+  let request =
+    rest.patch(
+      "/webhooks/"
+        <> ids.application_to_string(application_id)
+        <> "/"
+        <> interaction_token
+        <> "/messages/@original",
+      json.object([#("content", json.string(content))]) |> json.to_string,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn send_message_with_files_with(
+  client: rest.RestClient,
+  transport: TransportBits,
+  channel_id: ChannelId,
+  content: String,
+  files: List(File),
+) -> Result(Message, TadpoleError) {
+  let payload_json =
+    json.object([#("content", json.string(content))]) |> json.to_string
+  let body = upload.build_multipart(payload_json, files)
+  let path = "/channels/" <> ids.channel_to_string(channel_id) <> "/messages"
+  let request =
+    request.Request(
+      method: http.Post,
+      headers: [
+        #("authorization", "Bot " <> client.token),
+        #("user-agent", user_agent.value()),
+        #("content-type", "multipart/form-data; boundary=----tadpoleboundary"),
+      ],
+      body: body,
+      scheme: http.Https,
+      host: "discord.com",
+      port: None,
+      path: "/api/v10" <> path,
+      query: None,
+    )
+  let route = error.Route(method: error.POST, path: path)
+  case execute.send_bits(route, client, request, transport) {
+    Ok(response) -> message.from_json(response.body)
     Error(e) -> Error(e)
   }
 }

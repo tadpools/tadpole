@@ -75,7 +75,7 @@ fn hand_built_bot(t: Transport) -> bot.Bot {
   bot.Bot(
     config: tadpole.new(fake_token),
     rest: rest.new_client(fake_token, 5000, True, 2),
-    shard: process.new_subject(),
+    shards: [process.new_subject()],
     token: fake_token,
     transport: t,
   )
@@ -97,11 +97,11 @@ pub fn start_rejects_missing_token_before_spawning_test() {
   bot.start(tadpole.new(""), no_op) |> should.equal(Error(error.MissingToken))
 }
 
-pub fn start_rejects_multi_shard_configs_test() {
-  let config = tadpole.new(fake_token) |> tadpole.with_shards(2)
+pub fn start_rejects_negative_shard_configs_test() {
+  let config = tadpole.new(fake_token) |> tadpole.with_shards(-1)
 
   bot.start(config, no_op)
-  |> should.equal(Error(error.ShardingNotSupported(2)))
+  |> should.equal(Error(error.ShardingNotSupported(-1)))
 }
 
 pub fn sharding_error_is_actionable_and_rendered_test() {
@@ -453,7 +453,7 @@ fn length_of(list: List(a)) -> Int {
 pub fn stop_signals_the_shard_test() {
   let shard_subject = process.new_subject()
   let running =
-    bot.Bot(..hand_built_bot(transport_ok("")), shard: shard_subject)
+    bot.Bot(..hand_built_bot(transport_ok("")), shards: [shard_subject])
 
   bot.stop(running)
 

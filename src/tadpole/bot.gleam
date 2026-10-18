@@ -1,4 +1,4 @@
-//// The beginner-facing runner: one config, one handler, one shard.
+//// The beginner-facing runner: one config, one handler, one or more shards.
 //// `start` validates the config, opens the gateway, and hands back a Bot
 //// whose events arrive at your handler one at a time, in arrival order.
 //// The same Bot answers REST calls over its own transport:
@@ -6,8 +6,8 @@
 //// `add_reaction`, `remove_own_reaction`, `get_reaction_users`,
 //// `edit_message`, `delete_message`, and `with_typing` shows a typing
 //// indicator for as long as your work runs. `stop` closes the gateway.
-//// Multi-shard fleets, handler supervision, and a stop that ends the
-//// program are later work. A handler crash takes the whole bot down,
+//// Handler supervision and a stop that ends the program are later work.
+//// A handler crash takes the whole bot down,
 //// which beats a silently dead bot.
 //// Stability: Experimental.
 ////
@@ -21,8 +21,9 @@
 //// block until killed. Use `start` instead when the rest of the
 //// program must keep working. It returns a Bot once the shard is up,
 //// and `stop` and the REST helpers are callable from any process
-//// later. Neither function runs more than one shard. That is refused
-//// at startup, not negotiated at runtime.
+//// later. Shard count is fixed at startup from the config (or
+//// auto-detected from /gateway/bot when set to zero); it is not
+//// negotiated at runtime.
 ////
 //// ## Failure modes
 ////
@@ -31,8 +32,8 @@
 ////
 //// - `MissingToken` / `InvalidTokenFormat`: the token was empty,
 ////   whitespace, too short, or carried quotes.
-//// - `ShardingNotSupported(got)`: the config asked for `got` shards;
-////   this milestone runs exactly one.
+//// - `ShardingNotSupported(got)`: the config asked for a negative shard
+////   count. Zero means auto-detect via /gateway/bot.
 ////
 //// After startup, `start` and `run` do not fail again. The shard
 //// reconnects on its own and reports through lifecycle notices (below).
@@ -157,23 +158,33 @@
 //// - [`tadpole/rest/endpoints`](rest/endpoints.html) the REST calls, and the `MessageQuery` behind `get_messages`
 //// - [`tadpole/error/render`](error/render.html) errors to readable text
 
+import gleam/dynamic/decode as d
 import gleam/erlang/process.{type Subject}
 import gleam/int
+import gleam/json
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import logging
 import tadpole
 import tadpole/error.{type TadpoleError}
 import tadpole/gateway
 import tadpole/gateway/events.{type Event}
+import tadpole/gateway/identify_gate
 import tadpole/gateway/shard
 import tadpole/intent
 import tadpole/model/channel.{type Channel}
+import tadpole/model/component.{type Component}
+import tadpole/model/embed.{type Embed}
 import tadpole/model/emoji.{type Emoji}
+import tadpole/model/file.{type File}
 import tadpole/model/message.{type Message}
 import tadpole/rest.{type RestClient}
 import tadpole/rest/endpoints
 import tadpole/rest/execute.{type Transport}
-import tadpole/types/ids.{type ChannelId, type MessageId, type UserId}
+import tadpole/types/ids.{
+  type ApplicationId, type ChannelId, type GuildId, type InteractionId,
+  type MessageId, type UserId,
+}
 
 /// How long between typing refreshes. Discord's indicator expires after
 /// 10 seconds and the route allows five calls per ten seconds, so eight
@@ -199,9 +210,9 @@ pub type Bot {
     /// REST client behind `send_message` and `reply`; hand it to
     /// tadpole/rest/endpoints for calls the bot helpers do not wrap.
     rest: RestClient,
-    /// The shard actor. `stop` sends it `shard.Stop`; every other
+    /// The shard actors. `stop` sends each `shard.Stop`; every other
     /// ShardMsg variant is internal plumbing.
-    shard: Subject(shard.ShardMsg),
+    shards: List(Subject(shard.ShardMsg)),
     /// The token the shard identifies with. Never log it.
     token: String,
     /// The HTTP transport the bot helpers run over. gleam_httpc for bots
@@ -233,7 +244,7 @@ pub fn start(
     Error(e) -> Error(e)
     Ok(validated) ->
       case validated.config.shard_count {
-        1 -> launch(validated.config, validated.rest, handler)
+        n if n >= 0 -> launch(validated.config, validated.rest, handler)
         got -> Error(error.ShardingNotSupported(got))
       }
   }
@@ -281,6 +292,181 @@ pub fn send_message(
   content: String,
 ) -> Result(Message, TadpoleError) {
   endpoints.send_message_with(bot.rest, bot.transport, channel_id, content)
+}
+
+pub fn send_message_with_embeds(
+  bot: Bot,
+  channel_id: ChannelId,
+  content: String,
+  embeds: List(Embed),
+) -> Result(Message, TadpoleError) {
+  endpoints.send_message_with_embeds_with(
+    bot.rest,
+    bot.transport,
+    channel_id,
+    content,
+    embeds,
+  )
+}
+
+pub fn send_message_with_components(
+  bot: Bot,
+  channel_id: ChannelId,
+  content: String,
+  components: List(Component),
+) -> Result(Message, TadpoleError) {
+  endpoints.send_message_with_components_with(
+    bot.rest,
+    bot.transport,
+    channel_id,
+    content,
+    components,
+  )
+}
+
+pub fn send_message_with_files(
+  bot: Bot,
+  channel_id: ChannelId,
+  content: String,
+  files: List(File),
+) -> Result(Message, TadpoleError) {
+  endpoints.send_message_with_files_with(
+    bot.rest,
+    execute.httpc_binary_transport(bot.config.rest_timeout_ms),
+    channel_id,
+    content,
+    files,
+  )
+}
+
+/// Respond to an interaction (slash command) with a text message.
+pub fn respond_interaction(
+  bot: Bot,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  content: String,
+) -> Result(Nil, TadpoleError) {
+  endpoints.respond_interaction_with(
+    bot.rest,
+    bot.transport,
+    interaction_id,
+    interaction_token,
+    content,
+  )
+}
+
+/// Respond to an interaction with a message containing embeds.
+pub fn respond_interaction_with_embeds(
+  bot: Bot,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  content: String,
+  embeds: List(Embed),
+) -> Result(Nil, TadpoleError) {
+  endpoints.respond_interaction_with_embeds_with(
+    bot.rest,
+    bot.transport,
+    interaction_id,
+    interaction_token,
+    content,
+    embeds,
+  )
+}
+
+/// Respond to an interaction with a message containing components.
+pub fn respond_interaction_with_components(
+  bot: Bot,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  content: String,
+  components: List(Component),
+) -> Result(Nil, TadpoleError) {
+  endpoints.respond_interaction_with_components_with(
+    bot.rest,
+    bot.transport,
+    interaction_id,
+    interaction_token,
+    content,
+    components,
+  )
+}
+
+/// Acknowledge an interaction without a message, showing "thinking".
+pub fn defer_interaction(
+  bot: Bot,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  ephemeral: Bool,
+) -> Result(Nil, TadpoleError) {
+  endpoints.defer_interaction_with(
+    bot.rest,
+    bot.transport,
+    interaction_id,
+    interaction_token,
+    ephemeral,
+  )
+}
+
+/// Send a follow-up message to an interaction after the initial response.
+pub fn followup_interaction(
+  bot: Bot,
+  application_id: ApplicationId,
+  interaction_token: String,
+  content: String,
+) -> Result(Nil, TadpoleError) {
+  endpoints.followup_interaction_with(
+    bot.rest,
+    bot.transport,
+    application_id,
+    interaction_token,
+    content,
+  )
+}
+
+/// Register a global slash command. `body` is the command JSON.
+pub fn create_global_command(
+  bot: Bot,
+  application_id: ApplicationId,
+  body: String,
+) -> Result(Nil, TadpoleError) {
+  endpoints.create_global_command_with(
+    bot.rest,
+    bot.transport,
+    application_id,
+    body,
+  )
+}
+
+/// Register a guild slash command. `body` is the command JSON.
+pub fn create_guild_command(
+  bot: Bot,
+  application_id: ApplicationId,
+  guild_id: GuildId,
+  body: String,
+) -> Result(Nil, TadpoleError) {
+  endpoints.create_guild_command_with(
+    bot.rest,
+    bot.transport,
+    application_id,
+    guild_id,
+    body,
+  )
+}
+
+/// Edit the original response to an interaction.
+pub fn edit_original_interaction_response(
+  bot: Bot,
+  application_id: ApplicationId,
+  interaction_token: String,
+  content: String,
+) -> Result(Nil, TadpoleError) {
+  endpoints.edit_original_interaction_response_with(
+    bot.rest,
+    bot.transport,
+    application_id,
+    interaction_token,
+    content,
+  )
 }
 
 /// POST a reply: like `send_message` but carrying a message_reference, so
@@ -559,7 +745,7 @@ pub fn bulk_delete_messages(
 /// does; `run` does not return when you call this. To end the program,
 /// kill it as usual.
 pub fn stop(bot: Bot) -> Nil {
-  process.send(bot.shard, shard.Stop)
+  list.each(bot.shards, fn(s) { process.send(s, shard.Stop) })
 }
 
 // ---------------------------------------------------------------------
@@ -596,33 +782,100 @@ fn bot_main(
   handler: fn(Bot, Event) -> Nil,
   reply: Subject(Result(Bot, TadpoleError)),
 ) -> Nil {
-  // Both subjects are created here, in the dispatcher, because a subject
-  // can only be received on by its owner. And this process reads them
-  // for the bot's whole life. Everyone else may send.
-  let events_subject = process.new_subject()
-  let lifecycle = process.new_subject()
-  let shard_config =
-    shard.ShardConfig(
-      token: cfg.token,
-      intents: intent.to_int(cfg.intents),
-      shard: #(0, cfg.shard_count),
-      url: gateway_url,
-      lifecycle: Some(lifecycle),
-    )
-  case shard.start(shard_config, events: events_subject) {
-    Ok(shard_subject) -> {
-      let bot =
-        Bot(
-          config: cfg,
-          rest: rest_client,
-          shard: shard_subject,
-          token: cfg.token,
-          transport: execute.httpc_transport(cfg.rest_timeout_ms),
-        )
-      process.send(reply, Ok(bot))
-      dispatch_loop(bot, handler, events_subject, lifecycle, cfg.log_level)
-    }
+  // One events subject and one lifecycle subject per shard, all owned by
+  // this dispatcher. Events from every shard funnel into one handler call
+  // at a time, in arrival order across shards.
+  let transport = execute.httpc_transport(cfg.rest_timeout_ms)
+  let resolved = case cfg.shard_count > 0 {
+    True -> Ok(#(cfg.shard_count, 1))
+    False -> fetch_gateway_bot(rest_client, transport)
+  }
+  case resolved {
     Error(e) -> process.send(reply, Error(e))
+    Ok(#(count, max_concurrency)) -> {
+      let events_subjects =
+        list.repeat(Nil, count) |> list.map(fn(_) { process.new_subject() })
+      let lifecycle_subjects =
+        list.repeat(Nil, count) |> list.map(fn(_) { process.new_subject() })
+      case
+        start_shards(
+          cfg,
+          count,
+          max_concurrency,
+          events_subjects,
+          lifecycle_subjects,
+          [],
+        )
+      {
+        Ok(shard_subjects) -> {
+          let bot =
+            Bot(
+              config: cfg,
+              rest: rest_client,
+              shards: shard_subjects,
+              token: cfg.token,
+              transport: transport,
+            )
+          process.send(reply, Ok(bot))
+          dispatch_loop_multi(
+            bot,
+            handler,
+            events_subjects,
+            lifecycle_subjects,
+            cfg.log_level,
+          )
+        }
+        Error(e) -> process.send(reply, Error(e))
+      }
+    }
+  }
+}
+
+fn start_shards(
+  cfg: tadpole.Config,
+  remaining: Int,
+  max_concurrency: Int,
+  events_subjects: List(Subject(Event)),
+  lifecycle_subjects: List(Subject(shard.Lifecycle)),
+  acc: List(Subject(shard.ShardMsg)),
+) -> Result(List(Subject(shard.ShardMsg)), TadpoleError) {
+  case remaining <= 0 {
+    True -> Ok(list.reverse(acc))
+    False -> {
+      let index = cfg.shard_count - remaining
+      let concurrency = case max_concurrency < 1 {
+        True -> 1
+        False -> max_concurrency
+      }
+      case index > 0 && index % concurrency == 0 {
+        True -> process.sleep(identify_gate.recommended_delay_ms(1))
+        False -> Nil
+      }
+      let assert Ok(events_subject) =
+        list.drop(events_subjects, index) |> list.first
+      let assert Ok(lifecycle_subject) =
+        list.drop(lifecycle_subjects, index) |> list.first
+      let shard_config =
+        shard.ShardConfig(
+          token: cfg.token,
+          intents: intent.to_int(cfg.intents),
+          shard: #(index, cfg.shard_count),
+          url: gateway_url,
+          lifecycle: Some(lifecycle_subject),
+        )
+      case shard.start(shard_config, events: events_subject) {
+        Ok(shard_subject) ->
+          start_shards(
+            cfg,
+            remaining - 1,
+            max_concurrency,
+            events_subjects,
+            lifecycle_subjects,
+            [shard_subject, ..acc],
+          )
+        Error(e) -> Error(e)
+      }
+    }
   }
 }
 
@@ -633,27 +886,42 @@ type Notice {
 
 /// The event loop. Events reach `handler` strictly one at a time: the
 /// recursion does not run again until the handler returns. Lifecycle
-/// notices from the shard log at the configured threshold and never
+/// notices from every shard log at the configured threshold and never
 /// contain the token.
-fn dispatch_loop(
+fn dispatch_loop_multi(
   bot: Bot,
   handler: fn(Bot, Event) -> Nil,
-  events_subject: Subject(Event),
-  lifecycle: Subject(shard.Lifecycle),
+  events_subjects: List(Subject(Event)),
+  lifecycle_subjects: List(Subject(shard.Lifecycle)),
   threshold: tadpole.LogLevel,
 ) -> Nil {
   let selector =
-    process.new_selector()
-    |> process.select_map(events_subject, GotEvent)
-    |> process.select_map(lifecycle, GotLifecycle)
+    list.fold(events_subjects, process.new_selector(), fn(sel, subj) {
+      process.select_map(sel, subj, GotEvent)
+    })
+    |> list.fold(lifecycle_subjects, _, fn(sel, subj) {
+      process.select_map(sel, subj, GotLifecycle)
+    })
   case process.selector_receive_forever(selector) {
     GotEvent(event) -> {
       handler(bot, event)
-      dispatch_loop(bot, handler, events_subject, lifecycle, threshold)
+      dispatch_loop_multi(
+        bot,
+        handler,
+        events_subjects,
+        lifecycle_subjects,
+        threshold,
+      )
     }
     GotLifecycle(notice) -> {
       log_notice(threshold, notice)
-      dispatch_loop(bot, handler, events_subject, lifecycle, threshold)
+      dispatch_loop_multi(
+        bot,
+        handler,
+        events_subjects,
+        lifecycle_subjects,
+        threshold,
+      )
     }
   }
 }
@@ -693,6 +961,42 @@ fn to_logging_level(level: tadpole.LogLevel) -> logging.LogLevel {
     tadpole.Info -> logging.Info
     tadpole.Warn -> logging.Warning
     tadpole.ErrorLevel -> logging.Error
+  }
+}
+
+fn fetch_gateway_bot(
+  client: RestClient,
+  transport: Transport,
+) -> Result(#(Int, Int), TadpoleError) {
+  let request = rest.get("/gateway/bot")
+  case execute.send(client, request, transport) {
+    Error(e) -> Error(e)
+    Ok(response) -> {
+      let session_decoder = {
+        use max_concurrency <- d.field("max_concurrency", d.int)
+        d.success(max_concurrency)
+      }
+      let decoder = {
+        use shards <- d.field("shards", d.int)
+        use max_concurrency <- d.field("session_start_limit", session_decoder)
+        d.success(#(shards, max_concurrency))
+      }
+      case json.parse(response.body, decoder) {
+        Ok(#(shards, max_concurrency)) -> {
+          let count = case shards < 1 {
+            True -> 1
+            False -> shards
+          }
+          Ok(#(count, max_concurrency))
+        }
+        Error(_) ->
+          Error(error.InternalContractViolation(
+            location: "tadpole/bot.fetch_gateway_bot",
+            details: "could not decode /gateway/bot response",
+            cause: None,
+          ))
+      }
+    }
   }
 }
 

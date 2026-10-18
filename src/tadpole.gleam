@@ -37,7 +37,7 @@
 //// | Module | What it owns | Audience |
 //// | --- | --- | --- |
 //// | [`tadpole`](tadpole.html) | config builder: `new`, `with_*`, `validate`, `describe_config` | beginner |
-//// | [`tadpole/bot`](tadpole/bot.html) | the runner: `start`, `run`, `send_message`, `reply`, `stop`; one shard | beginner |
+//// | [`tadpole/bot`](tadpole/bot.html) | the runner: `start`, `run`, `send_message`, `reply`, `stop`; one or more shards | beginner |
 //// | [`tadpole/guide`](tadpole/guide.html) | the walkthrough | beginner |
 //// | [`tadpole/gateway/events`](tadpole/gateway/events.html) | the typed `Event` type: Ready, MessageCreate, Unknown, ... | beginner |
 //// | [`tadpole/intent`](tadpole/intent.html) | typed intent variants, privileged-intent detection | beginner |
@@ -50,6 +50,7 @@
 //// | [`tadpole/model/guild`](tadpole/model/guild.html) | the guild object and the unavailable stub | beginner |
 //// | [`tadpole/model/channel`](tadpole/model/channel.html) | the channel object, trimmed | beginner |
 //// | [`tadpole/model/emoji`](tadpole/model/emoji.html) | an emoji for reactions, unicode or custom, encoded for the route | beginner |
+//// | [`tadpole/model/interaction`](tadpole/model/interaction.html) | an interaction payload and its type | beginner |
 //// | [`tadpole/gateway/shard`](tadpole/gateway/shard.html) | one gateway connection, end to end | internals |
 //// | [`tadpole/gateway/transport`](tadpole/gateway/transport.html) | the stratus websocket behind a wall | internals |
 //// | [`tadpole/gateway/frame`](tadpole/gateway/frame.html) | frame envelope parsing and building: `{op, d, s, t}` | internals |

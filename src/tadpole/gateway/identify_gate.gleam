@@ -10,7 +10,8 @@
 ////
 //// When you build a multi-shard fleet. Call `recommended_delay_ms` for
 //// how long a fleet of `shard_count` takes to come up. Not wired into
-//// anything yet; [`tadpole/bot`](../bot.html) runs one shard, which
+//// wired into bot.start for multi-shard fleets; single-shard bots do not
+//// need pacing.
 //// never needs pacing.
 ////
 //// Stability: Experimental.

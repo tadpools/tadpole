@@ -94,6 +94,7 @@
 //// - [`tadpole/rest`](../rest.html) request builders and header parsing
 //// - [`tadpole/rest/endpoints`](endpoints.html) the endpoint helpers on top
 
+import gleam/bit_array
 import gleam/dict
 import gleam/dynamic/decode as d
 import gleam/erlang/process
@@ -140,6 +141,9 @@ pub type ConnectError {
 pub type Transport =
   fn(Request(String)) -> Result(Response(String), TransportError)
 
+pub type TransportBits =
+  fn(Request(BitArray)) -> Result(Response(BitArray), TransportError)
+
 const api_prefix = "/api/v10"
 
 /// The real transport, on gleam_httpc. `timeout_ms` bounds how long one
@@ -149,6 +153,19 @@ pub fn httpc_transport(timeout_ms: Int) -> Transport {
   let config = httpc.configure() |> httpc.timeout(timeout_ms)
   fn(request) {
     case httpc.dispatch(config, request) {
+      Ok(response) -> Ok(response)
+      Error(httpc.InvalidUtf8Response) -> Error(InvalidUtf8Response)
+      Error(httpc.FailedToConnect(ip4, ip6)) ->
+        Error(FailedToConnect(to_connect_error(ip4), to_connect_error(ip6)))
+      Error(httpc.ResponseTimeout) -> Error(ResponseTimeout)
+    }
+  }
+}
+
+pub fn httpc_binary_transport(timeout_ms: Int) -> TransportBits {
+  let config = httpc.configure() |> httpc.timeout(timeout_ms)
+  fn(request) {
+    case httpc.dispatch_bits(config, request) {
       Ok(response) -> Ok(response)
       Error(httpc.InvalidUtf8Response) -> Error(InvalidUtf8Response)
       Error(httpc.FailedToConnect(ip4, ip6)) ->
@@ -227,6 +244,114 @@ pub fn send(
   transport: Transport,
 ) -> Result(rest.RestResponse, TadpoleError) {
   send_with_sleep(client, request, transport, process.sleep)
+}
+
+/// Send a binary (multipart) request. Returns a RestResponse with the
+/// body converted to a string. Retries 429s up to the client's limit.
+pub fn send_bits(
+  route: error.Route,
+  client: rest.RestClient,
+  request: request.Request(BitArray),
+  transport: TransportBits,
+) -> Result(rest.RestResponse, TadpoleError) {
+  send_bits_with_sleep(route, client, request, transport, process.sleep)
+}
+
+pub fn send_bits_with_sleep(
+  route: error.Route,
+  client: rest.RestClient,
+  request: request.Request(BitArray),
+  transport: TransportBits,
+  sleep_fn: fn(Int) -> Nil,
+) -> Result(rest.RestResponse, TadpoleError) {
+  send_bits_retry(
+    route,
+    client,
+    request,
+    transport,
+    sleep_fn,
+    client.max_retries,
+  )
+}
+
+fn send_bits_retry(
+  route: error.Route,
+  client: rest.RestClient,
+  request: request.Request(BitArray),
+  transport: TransportBits,
+  sleep_fn: fn(Int) -> Nil,
+  attempts_left: Int,
+) -> Result(rest.RestResponse, TadpoleError) {
+  case transport(request) {
+    Error(te) -> Error(transport_failure(route, te))
+    Ok(response) -> {
+      let body = case bit_array.to_string(response.body) {
+        Ok(s) -> s
+        Error(_) -> ""
+      }
+      let rest_response =
+        rest.RestResponse(
+          status: response.status,
+          headers: response.headers,
+          body: body,
+          rate_limit_headers: Some(rest.parse_rate_limit_headers(
+            response.headers,
+          )),
+        )
+      case response.status == 429 {
+        True -> {
+          let retry_ms = case rest.parse_rate_limit_headers(response.headers) {
+            _ -> 0
+          }
+          // Prefer Retry-After header or body retry_after
+          let retry_after_ms = rate_limit_retry_after_ms(response, retry_ms)
+          case client.retry_on_429 && attempts_left > 0 {
+            True -> {
+              sleep_fn(retry_after_ms)
+              send_bits_retry(
+                route,
+                client,
+                request,
+                transport,
+                sleep_fn,
+                attempts_left - 1,
+              )
+            }
+            False ->
+              Error(error.RateLimited(
+                route: route,
+                retry_after_ms: retry_after_ms,
+                is_global: False,
+                bucket: None,
+              ))
+          }
+        }
+        False ->
+          case response.status >= 200 && response.status < 300 {
+            True -> Ok(rest_response)
+            False -> Error(status_error(route, rest_response))
+          }
+      }
+    }
+  }
+}
+
+fn rate_limit_retry_after_ms(
+  response: response.Response(BitArray),
+  _fallback: Int,
+) -> Int {
+  // Try Retry-After header (seconds)
+  case
+    response.headers
+    |> list.find(fn(h) { string.lowercase(h.0) == "retry-after" })
+  {
+    Ok(#(_, v)) ->
+      case int.parse(v) {
+        Ok(n) -> n * 1000
+        Error(_) -> 0
+      }
+    Error(_) -> 0
+  }
 }
 
 /// Same as `send` with the sleep function injected: tests pass a no-op
