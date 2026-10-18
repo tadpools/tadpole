@@ -20,7 +20,8 @@
 ////   token; `got` is redacted when rendered.
 //// - `IntentsNotPrivileged(intent)`: the one named intent needs a
 ////   Developer Portal toggle.
-//// - `ShardingNotSupported(got)`: this milestone runs one shard.
+//// - `ShardingNotSupported(got)`: shard count was negative. Zero means
+////   auto-detect via /gateway/bot.
 ////
 //// Gateway (connection lifecycle and protocol):
 ////

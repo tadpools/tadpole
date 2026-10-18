@@ -147,15 +147,13 @@ fn describe(error: TadpoleError) -> #(String, String) {
     )
 
     ShardingNotSupported(got) -> #(
-      "Tadpole's bot layer runs exactly one shard per bot right now.",
+      "Shard count must be a positive integer.",
       "The config asked for "
         <> int.to_string(got)
-        <> " shards. Multi-shard fleets need the identify pacing and "
-        <> "/gateway/bot wiring that are not built yet, so tadpole refuses "
-        <> "the config instead of connecting a broken fleet.\n\nTry:\n"
-        <> "  1. Remove with_shards from your config — one shard is the default\n"
-        <> "  2. If your bot genuinely needs several shards (2,500+ guilds), "
-        <> "open an issue so multi-shard support gets prioritised",
+        <> " shards. Zero means auto-detect via /gateway/bot; any positive "
+        <> "number is used directly.\n\nTry:\n"
+        <> "  1. Use with_shards(0) to let Discord pick the count\n"
+        <> "  2. Or pass a positive number, e.g. with_shards(4)",
     )
 
     GatewayConnectFailed(reason, attempt, next_retry_ms) -> #(

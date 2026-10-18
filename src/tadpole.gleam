@@ -37,7 +37,7 @@
 //// | Module | What it owns | Audience |
 //// | --- | --- | --- |
 //// | [`tadpole`](tadpole.html) | config builder: `new`, `with_*`, `validate`, `describe_config` | beginner |
-//// | [`tadpole/bot`](tadpole/bot.html) | the runner: `start`, `run`, `send_message`, `reply`, `stop`; one shard | beginner |
+//// | [`tadpole/bot`](tadpole/bot.html) | the runner: `start`, `run`, `send_message`, `reply`, `stop`; one or more shards | beginner |
 //// | [`tadpole/guide`](tadpole/guide.html) | the walkthrough | beginner |
 //// | [`tadpole/gateway/events`](tadpole/gateway/events.html) | the typed `Event` type: Ready, MessageCreate, Unknown, ... | beginner |
 //// | [`tadpole/intent`](tadpole/intent.html) | typed intent variants, privileged-intent detection | beginner |

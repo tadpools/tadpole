@@ -1,4 +1,4 @@
-//// The beginner-facing runner: one config, one handler, one shard.
+//// The beginner-facing runner: one config, one handler, one or more shards.
 //// `start` validates the config, opens the gateway, and hands back a Bot
 //// whose events arrive at your handler one at a time, in arrival order.
 //// The same Bot answers REST calls over its own transport:
@@ -21,8 +21,9 @@
 //// block until killed. Use `start` instead when the rest of the
 //// program must keep working. It returns a Bot once the shard is up,
 //// and `stop` and the REST helpers are callable from any process
-//// later. Neither function runs more than one shard. That is refused
-//// at startup, not negotiated at runtime.
+//// later. Shard count is fixed at startup from the config (or
+//// auto-detected from /gateway/bot when set to zero); it is not
+//// negotiated at runtime.
 ////
 //// ## Failure modes
 ////
@@ -31,8 +32,8 @@
 ////
 //// - `MissingToken` / `InvalidTokenFormat`: the token was empty,
 ////   whitespace, too short, or carried quotes.
-//// - `ShardingNotSupported(got)`: the config asked for `got` shards;
-////   this milestone runs exactly one.
+//// - `ShardingNotSupported(got)`: the config asked for a negative shard
+////   count. Zero means auto-detect via /gateway/bot.
 ////
 //// After startup, `start` and `run` do not fail again. The shard
 //// reconnects on its own and reports through lifecycle notices (below).

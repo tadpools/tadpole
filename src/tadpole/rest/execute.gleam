@@ -140,6 +140,9 @@ pub type ConnectError {
 pub type Transport =
   fn(Request(String)) -> Result(Response(String), TransportError)
 
+pub type TransportBits =
+  fn(Request(BitArray)) -> Result(Response(BitArray), TransportError)
+
 const api_prefix = "/api/v10"
 
 /// The real transport, on gleam_httpc. `timeout_ms` bounds how long one
@@ -149,6 +152,19 @@ pub fn httpc_transport(timeout_ms: Int) -> Transport {
   let config = httpc.configure() |> httpc.timeout(timeout_ms)
   fn(request) {
     case httpc.dispatch(config, request) {
+      Ok(response) -> Ok(response)
+      Error(httpc.InvalidUtf8Response) -> Error(InvalidUtf8Response)
+      Error(httpc.FailedToConnect(ip4, ip6)) ->
+        Error(FailedToConnect(to_connect_error(ip4), to_connect_error(ip6)))
+      Error(httpc.ResponseTimeout) -> Error(ResponseTimeout)
+    }
+  }
+}
+
+pub fn httpc_binary_transport(timeout_ms: Int) -> TransportBits {
+  let config = httpc.configure() |> httpc.timeout(timeout_ms)
+  fn(request) {
+    case httpc.dispatch_bits(config, request) {
       Ok(response) -> Ok(response)
       Error(httpc.InvalidUtf8Response) -> Error(InvalidUtf8Response)
       Error(httpc.FailedToConnect(ip4, ip6)) ->

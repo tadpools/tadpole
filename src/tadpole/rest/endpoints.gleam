@@ -935,6 +935,76 @@ pub fn respond_interaction_with(
   }
 }
 
+pub fn respond_interaction_with_embeds_with(
+  client: rest.RestClient,
+  transport: Transport,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  content: String,
+  embeds: List(Embed),
+) -> Result(Nil, TadpoleError) {
+  let body =
+    json.object([
+      #("type", json.int(4)),
+      #(
+        "data",
+        json.object([
+          #("content", json.string(content)),
+          #("embeds", json.array(embeds, embed.to_json)),
+        ]),
+      ),
+    ])
+    |> json.to_string
+  let request =
+    rest.post(
+      "/interactions/"
+        <> ids.interaction_to_string(interaction_id)
+        <> "/"
+        <> interaction_token
+        <> "/callback",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn respond_interaction_with_components_with(
+  client: rest.RestClient,
+  transport: Transport,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  content: String,
+  components: List(Component),
+) -> Result(Nil, TadpoleError) {
+  let body =
+    json.object([
+      #("type", json.int(4)),
+      #(
+        "data",
+        json.object([
+          #("content", json.string(content)),
+          #("components", json.array(components, component.to_json)),
+        ]),
+      ),
+    ])
+    |> json.to_string
+  let request =
+    rest.post(
+      "/interactions/"
+        <> ids.interaction_to_string(interaction_id)
+        <> "/"
+        <> interaction_token
+        <> "/callback",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
 pub fn defer_interaction_with(
   client: rest.RestClient,
   transport: Transport,
