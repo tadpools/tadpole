@@ -179,6 +179,12 @@ pub fn message_to_string(id: MessageId) -> String {
   snowflake.to_string(sf)
 }
 
+/// Decimal string form of the application ID.
+pub fn application_to_string(id: ApplicationId) -> String {
+  let ApplicationId(sf) = id
+  snowflake.to_string(sf)
+}
+
 /// Decimal string form of the role ID.
 pub fn role_to_string(id: RoleId) -> String {
   let RoleId(sf) = id

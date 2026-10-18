@@ -16,6 +16,26 @@ import tadpole/types/ids.{
   type UserId,
 }
 
+pub type InteractionType {
+  Ping
+  ApplicationCommand
+  MessageComponent
+  ApplicationCommandAutocomplete
+  ModalSubmit
+  UnknownInteractionType(Int)
+}
+
+pub fn interaction_type_from_int(value: Int) -> InteractionType {
+  case value {
+    1 -> Ping
+    2 -> ApplicationCommand
+    3 -> MessageComponent
+    4 -> ApplicationCommandAutocomplete
+    5 -> ModalSubmit
+    _ -> UnknownInteractionType(value)
+  }
+}
+
 pub type InteractionData {
   InteractionData(name: String)
 }
@@ -24,6 +44,7 @@ pub type Interaction {
   Interaction(
     id: InteractionId,
     application_id: ApplicationId,
+    interaction_type: InteractionType,
     token: String,
     channel_id: Option(ChannelId),
     guild_id: Option(GuildId),
@@ -43,6 +64,7 @@ pub fn decoder() -> d.Decoder(Interaction) {
     "application_id",
     decode.snowflake_id(ids.application_id),
   )
+  use interaction_type <- d.field("type", d.int)
   use token <- d.field("token", d.string)
   use channel_id <- d.optional_field(
     "channel_id",
@@ -63,6 +85,7 @@ pub fn decoder() -> d.Decoder(Interaction) {
   d.success(Interaction(
     id: id,
     application_id: application_id,
+    interaction_type: interaction_type_from_int(interaction_type),
     token: token,
     channel_id: channel_id,
     guild_id: guild_id,

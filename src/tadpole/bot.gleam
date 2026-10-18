@@ -166,6 +166,7 @@ import tadpole
 import tadpole/error.{type TadpoleError}
 import tadpole/gateway
 import tadpole/gateway/events.{type Event}
+import tadpole/gateway/identify_gate
 import tadpole/gateway/shard
 import tadpole/intent
 import tadpole/model/channel.{type Channel}
@@ -175,7 +176,8 @@ import tadpole/rest.{type RestClient}
 import tadpole/rest/endpoints
 import tadpole/rest/execute.{type Transport}
 import tadpole/types/ids.{
-  type ChannelId, type InteractionId, type MessageId, type UserId,
+  type ApplicationId, type ChannelId, type InteractionId, type MessageId,
+  type UserId,
 }
 
 /// How long between typing refreshes. Discord's indicator expires after
@@ -297,6 +299,38 @@ pub fn respond_interaction(
     bot.rest,
     bot.transport,
     interaction_id,
+    interaction_token,
+    content,
+  )
+}
+
+/// Acknowledge an interaction without a message, showing "thinking".
+pub fn defer_interaction(
+  bot: Bot,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  ephemeral: Bool,
+) -> Result(Nil, TadpoleError) {
+  endpoints.defer_interaction_with(
+    bot.rest,
+    bot.transport,
+    interaction_id,
+    interaction_token,
+    ephemeral,
+  )
+}
+
+/// Send a follow-up message to an interaction after the initial response.
+pub fn followup_interaction(
+  bot: Bot,
+  application_id: ApplicationId,
+  interaction_token: String,
+  content: String,
+) -> Result(Nil, TadpoleError) {
+  endpoints.followup_interaction_with(
+    bot.rest,
+    bot.transport,
+    application_id,
     interaction_token,
     content,
   )
@@ -657,6 +691,10 @@ fn start_shards(
     True -> Ok(list.reverse(acc))
     False -> {
       let index = cfg.shard_count - remaining
+      case index > 0 {
+        True -> process.sleep(identify_gate.recommended_delay_ms(1))
+        False -> Nil
+      }
       let assert Ok(events_subject) =
         list.drop(events_subjects, index) |> list.first
       let assert Ok(lifecycle_subject) =

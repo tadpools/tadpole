@@ -109,7 +109,8 @@ import tadpole/model/user.{type User}
 import tadpole/rest
 import tadpole/rest/execute.{type Transport}
 import tadpole/types/ids.{
-  type ChannelId, type InteractionId, type MessageId, type UserId,
+  type ApplicationId, type ChannelId, type InteractionId, type MessageId,
+  type UserId,
 }
 
 /// Which slice of a channel's history to read.
@@ -858,12 +859,6 @@ pub fn delete_message_with(
   }
 }
 
-/// The message body every text post shares; reply adds message_reference
-/// on top of it.
-fn encode_content(content: String) -> String {
-  json.object([#("content", json.string(content))]) |> json.to_string
-}
-
 pub fn respond_interaction_with(
   client: rest.RestClient,
   transport: Transport,
@@ -888,4 +883,63 @@ pub fn respond_interaction_with(
     Ok(_) -> Ok(Nil)
     Error(e) -> Error(e)
   }
+}
+
+pub fn defer_interaction_with(
+  client: rest.RestClient,
+  transport: Transport,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  ephemeral: Bool,
+) -> Result(Nil, TadpoleError) {
+  let flags = case ephemeral {
+    True -> 64
+    False -> 0
+  }
+  let body =
+    json.object([
+      #("type", json.int(5)),
+      #("data", json.object([#("flags", json.int(flags))])),
+    ])
+    |> json.to_string
+  let request =
+    rest.post(
+      "/interactions/"
+        <> ids.interaction_to_string(interaction_id)
+        <> "/"
+        <> interaction_token
+        <> "/callback",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn followup_interaction_with(
+  client: rest.RestClient,
+  transport: Transport,
+  application_id: ApplicationId,
+  interaction_token: String,
+  content: String,
+) -> Result(Nil, TadpoleError) {
+  let request =
+    rest.post(
+      "/webhooks/"
+        <> ids.application_to_string(application_id)
+        <> "/"
+        <> interaction_token,
+      json.object([#("content", json.string(content))]) |> json.to_string,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+/// The message body every text post shares; reply adds message_reference
+/// on top of it.
+fn encode_content(content: String) -> String {
+  json.object([#("content", json.string(content))]) |> json.to_string
 }
