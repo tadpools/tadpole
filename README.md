@@ -151,6 +151,8 @@ check the portal for you.
   `/gateway/bot`; shards identify with pacing per `max_concurrency`.
 - **Interactions.** Receive `InteractionCreate`, respond, defer, follow up,
   register slash commands.
+- **Embeds, components, files.** Send rich embeds, buttons and select
+  menus, and multipart file uploads.
 
 `tadpole/bot` is a thin layer over the same public modules it drives, so
 dropping down to `tadpole/rest/execute` or the shard is always available.
@@ -159,7 +161,7 @@ dropping down to `tadpole/rest/execute` or the shard is always available.
 
 Do not assume any of these:
 
-- embeds, file uploads, message components (beyond text responses)
+- message components V2 and modals beyond basic buttons/selects
 - voice
 - a cache. Every event is what Discord just sent. Nothing is remembered.
 - member lists or presence beyond what rides along in other payloads
