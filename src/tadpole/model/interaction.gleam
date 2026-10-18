@@ -3,13 +3,9 @@
 //// reply to an interaction are modeled; everything else lands as the raw
 //// JSON on the event.
 //// Stability: Experimental.
-////
-//// ## See also
-////
-//// - [`tadpole/gateway/events`](../gateway/events.html) the `InteractionCreate` event
 
 import gleam/dynamic/decode as d
-import gleam/option.{type Option, None}
+import gleam/option.{type Option, None, Some}
 import tadpole/model/decode
 import tadpole/types/ids.{
   type ApplicationId, type ChannelId, type GuildId, type InteractionId,
@@ -36,8 +32,12 @@ pub fn interaction_type_from_int(value: Int) -> InteractionType {
   }
 }
 
+pub type InteractionOption {
+  InteractionOption(name: String, value: d.Dynamic)
+}
+
 pub type InteractionData {
-  InteractionData(name: String)
+  InteractionData(name: String, options: List(InteractionOption))
 }
 
 pub type Interaction {
@@ -53,9 +53,16 @@ pub type Interaction {
   )
 }
 
-pub fn data_decoder() -> d.Decoder(InteractionData) {
+fn option_decoder() -> d.Decoder(InteractionOption) {
   use name <- d.field("name", d.string)
-  d.success(InteractionData(name: name))
+  use value <- d.field("value", d.dynamic)
+  d.success(InteractionOption(name: name, value: value))
+}
+
+fn data_decoder() -> d.Decoder(InteractionData) {
+  use name <- d.field("name", d.string)
+  use options <- d.optional_field("options", [], d.list(option_decoder()))
+  d.success(InteractionData(name: name, options: options))
 }
 
 pub fn decoder() -> d.Decoder(Interaction) {
@@ -76,11 +83,20 @@ pub fn decoder() -> d.Decoder(Interaction) {
     None,
     d.optional(decode.snowflake_id(ids.guild_id)),
   )
-  use user_id <- d.optional_field(
-    "user_id",
+  use direct_user <- d.optional_field(
+    "user",
     None,
-    d.optional(decode.snowflake_id(ids.user_id)),
+    d.optional(d.at(["id"], decode.snowflake_id(ids.user_id))),
   )
+  use member_user <- d.optional_field(
+    "member",
+    None,
+    d.optional(d.at(["user", "id"], decode.snowflake_id(ids.user_id))),
+  )
+  let user_id = case direct_user {
+    Some(_) -> direct_user
+    None -> member_user
+  }
   use data <- d.optional_field("data", None, d.optional(data_decoder()))
   d.success(Interaction(
     id: id,
