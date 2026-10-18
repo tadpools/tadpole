@@ -829,6 +829,37 @@ pub fn reply_with(
   }
 }
 
+pub fn reply_with_embeds_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  content: String,
+  embeds: List(Embed),
+) -> Result(Message, TadpoleError) {
+  let body =
+    json.object([
+      #("content", json.string(content)),
+      #("embeds", json.array(embeds, embed.to_json)),
+      #(
+        "message_reference",
+        json.object([
+          #("message_id", json.string(ids.message_to_string(message_id))),
+        ]),
+      ),
+    ])
+    |> json.to_string
+  let request =
+    rest.post(
+      "/channels/" <> ids.channel_to_string(channel_id) <> "/messages",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(response) -> message.from_json(response.body)
+    Error(e) -> Error(e)
+  }
+}
+
 /// PATCH /channels/{channel_id}/messages/{message_id} to edit a message
 /// the bot owns. Only the bot's own messages can be edited.
 ///
@@ -860,6 +891,34 @@ pub fn edit_message_with(
 ) -> Result(Message, TadpoleError) {
   let body =
     json.object([#("content", json.string(new_content))]) |> json.to_string
+  let request =
+    rest.patch(
+      "/channels/"
+        <> ids.channel_to_string(channel_id)
+        <> "/messages/"
+        <> ids.message_to_string(message_id),
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(response) -> message.from_json(response.body)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn edit_message_with_embeds_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  message_id: MessageId,
+  new_content: String,
+  embeds: List(Embed),
+) -> Result(Message, TadpoleError) {
+  let body =
+    json.object([
+      #("content", json.string(new_content)),
+      #("embeds", json.array(embeds, embed.to_json)),
+    ])
+    |> json.to_string
   let request =
     rest.patch(
       "/channels/"
