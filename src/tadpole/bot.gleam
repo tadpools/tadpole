@@ -339,6 +339,42 @@ pub fn respond_interaction(
   )
 }
 
+/// Respond to an interaction with a message containing embeds.
+pub fn respond_interaction_with_embeds(
+  bot: Bot,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  content: String,
+  embeds: List(Embed),
+) -> Result(Nil, TadpoleError) {
+  endpoints.respond_interaction_with_embeds_with(
+    bot.rest,
+    bot.transport,
+    interaction_id,
+    interaction_token,
+    content,
+    embeds,
+  )
+}
+
+/// Respond to an interaction with a message containing components.
+pub fn respond_interaction_with_components(
+  bot: Bot,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  content: String,
+  components: List(Component),
+) -> Result(Nil, TadpoleError) {
+  endpoints.respond_interaction_with_components_with(
+    bot.rest,
+    bot.transport,
+    interaction_id,
+    interaction_token,
+    content,
+    components,
+  )
+}
+
 /// Acknowledge an interaction without a message, showing "thinking".
 pub fn defer_interaction(
   bot: Bot,
