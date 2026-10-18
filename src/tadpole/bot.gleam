@@ -897,7 +897,13 @@ fn fetch_gateway_bot(
         d.success(#(shards, max_concurrency))
       }
       case json.parse(response.body, decoder) {
-        Ok(value) -> Ok(value)
+        Ok(#(shards, max_concurrency)) -> {
+          let count = case shards < 1 {
+            True -> 1
+            False -> shards
+          }
+          Ok(#(count, max_concurrency))
+        }
         Error(_) ->
           Error(error.InternalContractViolation(
             location: "tadpole/bot.fetch_gateway_bot",
