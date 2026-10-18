@@ -147,6 +147,10 @@ check the portal for you.
   windows come from response headers and 429 bodies. No hardcoded table.
 - **REST.** Read a channel, read history with a cursor, fetch a message,
   send, reply, edit, delete, react, type.
+- **Multi-shard.** Set `with_shards(n)` or `0` to auto-detect via
+  `/gateway/bot`; shards identify with pacing per `max_concurrency`.
+- **Interactions.** Receive `InteractionCreate`, respond, defer, follow up,
+  register slash commands.
 
 `tadpole/bot` is a thin layer over the same public modules it drives, so
 dropping down to `tadpole/rest/execute` or the shard is always available.
@@ -155,10 +159,7 @@ dropping down to `tadpole/rest/execute` or the shard is always available.
 
 Do not assume any of these:
 
-- multi-shard. One shard. A config asking for more is refused with
-  `ShardingNotSupported` before anything connects.
-- interactions and slash commands
-- embeds, file uploads, message components
+- embeds, file uploads, message components (beyond text responses)
 - voice
 - a cache. Every event is what Discord just sent. Nothing is remembered.
 - member lists or presence beyond what rides along in other payloads

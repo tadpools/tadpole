@@ -6,8 +6,8 @@
 //// `add_reaction`, `remove_own_reaction`, `get_reaction_users`,
 //// `edit_message`, `delete_message`, and `with_typing` shows a typing
 //// indicator for as long as your work runs. `stop` closes the gateway.
-//// Multi-shard fleets, handler supervision, and a stop that ends the
-//// program are later work. A handler crash takes the whole bot down,
+//// Handler supervision and a stop that ends the program are later work.
+//// A handler crash takes the whole bot down,
 //// which beats a silently dead bot.
 //// Stability: Experimental.
 ////
