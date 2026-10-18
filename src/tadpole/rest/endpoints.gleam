@@ -99,7 +99,9 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import tadpole/error.{type BulkDeleteReason, type TadpoleError}
 import tadpole/model/channel.{type Channel}
+import tadpole/model/component.{type Component}
 import tadpole/model/decode
+import tadpole/model/embed.{type Embed}
 /// Imported as a bare function rather than called as `emoji.something`,
 /// because the route functions all take a parameter named `emoji` and a
 /// local of that name would shadow the module.
@@ -719,6 +721,54 @@ pub fn send_message_with(
     rest.post(
       "/channels/" <> ids.channel_to_string(channel_id) <> "/messages",
       encode_content(content),
+    )
+  case execute.send(client, request, transport) {
+    Ok(response) -> message.from_json(response.body)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn send_message_with_components_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  content: String,
+  components: List(Component),
+) -> Result(Message, TadpoleError) {
+  let body =
+    json.object([
+      #("content", json.string(content)),
+      #("components", json.array(components, component.to_json)),
+    ])
+    |> json.to_string
+  let request =
+    rest.post(
+      "/channels/" <> ids.channel_to_string(channel_id) <> "/messages",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(response) -> message.from_json(response.body)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn send_message_with_embeds_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  content: String,
+  embeds: List(Embed),
+) -> Result(Message, TadpoleError) {
+  let body =
+    json.object([
+      #("content", json.string(content)),
+      #("embeds", json.array(embeds, embed.to_json)),
+    ])
+    |> json.to_string
+  let request =
+    rest.post(
+      "/channels/" <> ids.channel_to_string(channel_id) <> "/messages",
+      body,
     )
   case execute.send(client, request, transport) {
     Ok(response) -> message.from_json(response.body)

@@ -172,6 +172,8 @@ import tadpole/gateway/identify_gate
 import tadpole/gateway/shard
 import tadpole/intent
 import tadpole/model/channel.{type Channel}
+import tadpole/model/component.{type Component}
+import tadpole/model/embed.{type Embed}
 import tadpole/model/emoji.{type Emoji}
 import tadpole/model/message.{type Message}
 import tadpole/rest.{type RestClient}
@@ -288,6 +290,36 @@ pub fn send_message(
   content: String,
 ) -> Result(Message, TadpoleError) {
   endpoints.send_message_with(bot.rest, bot.transport, channel_id, content)
+}
+
+pub fn send_message_with_embeds(
+  bot: Bot,
+  channel_id: ChannelId,
+  content: String,
+  embeds: List(Embed),
+) -> Result(Message, TadpoleError) {
+  endpoints.send_message_with_embeds_with(
+    bot.rest,
+    bot.transport,
+    channel_id,
+    content,
+    embeds,
+  )
+}
+
+pub fn send_message_with_components(
+  bot: Bot,
+  channel_id: ChannelId,
+  content: String,
+  components: List(Component),
+) -> Result(Message, TadpoleError) {
+  endpoints.send_message_with_components_with(
+    bot.rest,
+    bot.transport,
+    channel_id,
+    content,
+    components,
+  )
 }
 
 /// Respond to an interaction (slash command) with a text message.
