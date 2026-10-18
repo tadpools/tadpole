@@ -108,7 +108,9 @@ import tadpole/model/message.{type Message}
 import tadpole/model/user.{type User}
 import tadpole/rest
 import tadpole/rest/execute.{type Transport}
-import tadpole/types/ids.{type ChannelId, type MessageId, type UserId}
+import tadpole/types/ids.{
+  type ChannelId, type InteractionId, type MessageId, type UserId,
+}
 
 /// Which slice of a channel's history to read.
 ///
@@ -860,4 +862,30 @@ pub fn delete_message_with(
 /// on top of it.
 fn encode_content(content: String) -> String {
   json.object([#("content", json.string(content))]) |> json.to_string
+}
+
+pub fn respond_interaction_with(
+  client: rest.RestClient,
+  transport: Transport,
+  interaction_id: InteractionId,
+  interaction_token: String,
+  content: String,
+) -> Result(Nil, TadpoleError) {
+  let request =
+    rest.post(
+      "/interactions/"
+        <> ids.interaction_to_string(interaction_id)
+        <> "/"
+        <> interaction_token
+        <> "/callback",
+      json.object([
+        #("type", json.int(4)),
+        #("data", json.object([#("content", json.string(content))])),
+      ])
+        |> json.to_string,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
 }

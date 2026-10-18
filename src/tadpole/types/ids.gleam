@@ -91,6 +91,11 @@ pub opaque type EmojiId {
   EmojiId(Snowflake)
 }
 
+/// An opaque interaction ID. Construct from a string with `interaction_id`.
+pub opaque type InteractionId {
+  InteractionId(Snowflake)
+}
+
 /// Parse a string as a UserId. Fails with `InvalidId` if the string is
 /// not a valid snowflake.
 pub fn user_id(value: String) -> Result(UserId, InvalidId) {
@@ -139,6 +144,10 @@ pub fn emoji_id(value: String) -> Result(EmojiId, InvalidId) {
   snowflake(value) |> wrap(EmojiId)
 }
 
+pub fn interaction_id(value: String) -> Result(InteractionId, InvalidId) {
+  snowflake(value) |> wrap(InteractionId)
+}
+
 /// Decimal string form of the user ID, ready for URL paths and API calls.
 pub fn user_to_string(id: UserId) -> String {
   let UserId(sf) = id
@@ -180,6 +189,12 @@ pub fn role_to_string(id: RoleId) -> String {
 /// build the `name:id` form a custom emoji travels in.
 pub fn emoji_to_string(id: EmojiId) -> String {
   let EmojiId(sf) = id
+  snowflake.to_string(sf)
+}
+
+/// Decimal string form of the interaction ID.
+pub fn interaction_to_string(id: InteractionId) -> String {
+  let InteractionId(sf) = id
   snowflake.to_string(sf)
 }
 
