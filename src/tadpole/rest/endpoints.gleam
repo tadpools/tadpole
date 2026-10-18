@@ -92,6 +92,8 @@
 //// - [`tadpole/model/message`](../model/message.html) what comes back
 
 import gleam/dynamic/decode as d
+import gleam/http
+import gleam/http/request
 import gleam/int
 import gleam/json
 import gleam/list
@@ -106,14 +108,17 @@ import tadpole/model/embed.{type Embed}
 /// because the route functions all take a parameter named `emoji` and a
 /// local of that name would shadow the module.
 import tadpole/model/emoji.{type Emoji, to_path_segment}
+import tadpole/model/file.{type File}
 import tadpole/model/message.{type Message}
 import tadpole/model/user.{type User}
 import tadpole/rest
-import tadpole/rest/execute.{type Transport}
+import tadpole/rest/execute.{type Transport, type TransportBits}
+import tadpole/rest/upload
 import tadpole/types/ids.{
   type ApplicationId, type ChannelId, type InteractionId, type MessageId,
   type UserId,
 }
+import tadpole/user_agent
 
 /// Which slice of a channel's history to read.
 ///
@@ -1117,6 +1122,39 @@ pub fn edit_original_interaction_response_with(
     )
   case execute.send(client, request, transport) {
     Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn send_message_with_files_with(
+  client: rest.RestClient,
+  transport: TransportBits,
+  channel_id: ChannelId,
+  content: String,
+  files: List(File),
+) -> Result(Message, TadpoleError) {
+  let payload_json =
+    json.object([#("content", json.string(content))]) |> json.to_string
+  let body = upload.build_multipart(payload_json, files)
+  let path = "/channels/" <> ids.channel_to_string(channel_id) <> "/messages"
+  let request =
+    request.Request(
+      method: http.Post,
+      headers: [
+        #("authorization", "Bot " <> client.token),
+        #("user-agent", user_agent.value()),
+        #("content-type", "multipart/form-data; boundary=----tadpoleboundary"),
+      ],
+      body: body,
+      scheme: http.Https,
+      host: "discord.com",
+      port: None,
+      path: "/api/v10" <> path,
+      query: None,
+    )
+  let route = error.Route(method: error.POST, path: path)
+  case execute.send_bits(route, client, request, transport) {
+    Ok(response) -> message.from_json(response.body)
     Error(e) -> Error(e)
   }
 }

@@ -176,6 +176,7 @@ import tadpole/model/channel.{type Channel}
 import tadpole/model/component.{type Component}
 import tadpole/model/embed.{type Embed}
 import tadpole/model/emoji.{type Emoji}
+import tadpole/model/file.{type File}
 import tadpole/model/message.{type Message}
 import tadpole/rest.{type RestClient}
 import tadpole/rest/endpoints
@@ -320,6 +321,21 @@ pub fn send_message_with_components(
     channel_id,
     content,
     components,
+  )
+}
+
+pub fn send_message_with_files(
+  bot: Bot,
+  channel_id: ChannelId,
+  content: String,
+  files: List(File),
+) -> Result(Message, TadpoleError) {
+  endpoints.send_message_with_files_with(
+    bot.rest,
+    execute.httpc_binary_transport(bot.config.rest_timeout_ms),
+    channel_id,
+    content,
+    files,
   )
 }
 

@@ -94,6 +94,7 @@
 //// - [`tadpole/rest`](../rest.html) request builders and header parsing
 //// - [`tadpole/rest/endpoints`](endpoints.html) the endpoint helpers on top
 
+import gleam/bit_array
 import gleam/dict
 import gleam/dynamic/decode as d
 import gleam/erlang/process
@@ -243,6 +244,39 @@ pub fn send(
   transport: Transport,
 ) -> Result(rest.RestResponse, TadpoleError) {
   send_with_sleep(client, request, transport, process.sleep)
+}
+
+/// Send a binary (multipart) request. Returns a RestResponse with the
+/// body converted to a string. Rate-limit retries are not applied; the
+/// caller should avoid hot loops.
+pub fn send_bits(
+  route: error.Route,
+  _client: rest.RestClient,
+  request: request.Request(BitArray),
+  transport: TransportBits,
+) -> Result(rest.RestResponse, TadpoleError) {
+  case transport(request) {
+    Error(te) -> Error(transport_failure(route, te))
+    Ok(response) -> {
+      let body = case bit_array.to_string(response.body) {
+        Ok(s) -> s
+        Error(_) -> ""
+      }
+      let rest_response =
+        rest.RestResponse(
+          status: response.status,
+          headers: response.headers,
+          body: body,
+          rate_limit_headers: Some(rest.parse_rate_limit_headers(
+            response.headers,
+          )),
+        )
+      case response.status >= 200 && response.status < 300 {
+        True -> Ok(rest_response)
+        False -> Error(status_error(route, rest_response))
+      }
+    }
+  }
 }
 
 /// Same as `send` with the sleep function injected: tests pass a no-op
