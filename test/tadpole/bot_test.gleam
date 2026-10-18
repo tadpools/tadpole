@@ -97,11 +97,11 @@ pub fn start_rejects_missing_token_before_spawning_test() {
   bot.start(tadpole.new(""), no_op) |> should.equal(Error(error.MissingToken))
 }
 
-pub fn start_rejects_nonpositive_shard_configs_test() {
-  let config = tadpole.new(fake_token) |> tadpole.with_shards(0)
+pub fn start_rejects_negative_shard_configs_test() {
+  let config = tadpole.new(fake_token) |> tadpole.with_shards(-1)
 
   bot.start(config, no_op)
-  |> should.equal(Error(error.ShardingNotSupported(0)))
+  |> should.equal(Error(error.ShardingNotSupported(-1)))
 }
 
 pub fn sharding_error_is_actionable_and_rendered_test() {

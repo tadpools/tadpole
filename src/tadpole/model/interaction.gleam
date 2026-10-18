@@ -6,6 +6,7 @@
 
 import gleam/dynamic/decode as d
 import gleam/option.{type Option, None, Some}
+import tadpole/error.{type TadpoleError}
 import tadpole/model/decode
 import tadpole/types/ids.{
   type ApplicationId, type ChannelId, type GuildId, type InteractionId,
@@ -63,6 +64,10 @@ fn data_decoder() -> d.Decoder(InteractionData) {
   use name <- d.field("name", d.string)
   use options <- d.optional_field("options", [], d.list(option_decoder()))
   d.success(InteractionData(name: name, options: options))
+}
+
+pub fn from_json(payload: String) -> Result(Interaction, TadpoleError) {
+  decode.from_json(None, payload, decoder())
 }
 
 pub fn decoder() -> d.Decoder(Interaction) {

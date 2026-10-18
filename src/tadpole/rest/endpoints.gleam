@@ -938,6 +938,69 @@ pub fn followup_interaction_with(
   }
 }
 
+pub fn create_global_command_with(
+  client: rest.RestClient,
+  transport: Transport,
+  application_id: ApplicationId,
+  body: String,
+) -> Result(Nil, TadpoleError) {
+  let request =
+    rest.post(
+      "/applications/"
+        <> ids.application_to_string(application_id)
+        <> "/commands",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn create_guild_command_with(
+  client: rest.RestClient,
+  transport: Transport,
+  application_id: ApplicationId,
+  guild_id: ids.GuildId,
+  body: String,
+) -> Result(Nil, TadpoleError) {
+  let request =
+    rest.post(
+      "/applications/"
+        <> ids.application_to_string(application_id)
+        <> "/guilds/"
+        <> ids.guild_to_string(guild_id)
+        <> "/commands",
+      body,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
+pub fn edit_original_interaction_response_with(
+  client: rest.RestClient,
+  transport: Transport,
+  application_id: ApplicationId,
+  interaction_token: String,
+  content: String,
+) -> Result(Nil, TadpoleError) {
+  let request =
+    rest.patch(
+      "/webhooks/"
+        <> ids.application_to_string(application_id)
+        <> "/"
+        <> interaction_token
+        <> "/messages/@original",
+      json.object([#("content", json.string(content))]) |> json.to_string,
+    )
+  case execute.send(client, request, transport) {
+    Ok(_) -> Ok(Nil)
+    Error(e) -> Error(e)
+  }
+}
+
 /// The message body every text post shares; reply adds message_reference
 /// on top of it.
 fn encode_content(content: String) -> String {
