@@ -834,9 +834,7 @@ pub fn get_guild_member_permissions_uses_the_member_route_test() {
   let assert [sent] = recorded_requests()
   sent.method |> should.equal(http.Get)
   sent.path
-  |> should.equal(
-    "/api/v10/guilds/" <> guild <> "/permissions/member/" <> user,
-  )
+  |> should.equal("/api/v10/guilds/" <> guild <> "/permissions/member/" <> user)
   sent.query |> should.equal(None)
   permissions.to_string(permission_set)
   |> should.equal("1180591620717411303425")
@@ -918,9 +916,7 @@ pub fn get_channel_permission_errors_keep_the_route_test() {
     )
 
   error.route_to_string(route)
-  |> should.equal(
-    "GET /channels/" <> channel <> "/permissions/role/" <> role,
-  )
+  |> should.equal("GET /channels/" <> channel <> "/permissions/role/" <> role)
 }
 
 // POST /channels/{id}/messages

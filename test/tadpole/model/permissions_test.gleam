@@ -4,9 +4,7 @@ import tadpole/model/permissions
 
 pub fn from_json_preserves_a_wide_permission_bitfield_test() {
   let assert Ok(permission_set) =
-    permissions.from_json(
-      "{\"permissions\":\"1180591620717411303425\"}",
-    )
+    permissions.from_json("{\"permissions\":\"1180591620717411303425\"}")
 
   permissions.to_string(permission_set)
   |> should.equal("1180591620717411303425")

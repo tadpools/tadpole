@@ -733,9 +733,9 @@ pub fn get_guild_member_permissions_with(
     transport,
     rest.get(
       "/guilds/"
-        <> ids.guild_to_string(guild_id)
-        <> "/permissions/member/"
-        <> ids.user_to_string(user_id),
+      <> ids.guild_to_string(guild_id)
+      <> "/permissions/member/"
+      <> ids.user_to_string(user_id),
     ),
   )
 }
@@ -780,9 +780,9 @@ pub fn get_guild_role_permissions_with(
     transport,
     rest.get(
       "/guilds/"
-        <> ids.guild_to_string(guild_id)
-        <> "/permissions/role/"
-        <> ids.role_to_string(role_id),
+      <> ids.guild_to_string(guild_id)
+      <> "/permissions/role/"
+      <> ids.role_to_string(role_id),
     ),
   )
 }
@@ -832,9 +832,9 @@ pub fn get_channel_member_permissions_with(
   let request =
     rest.get(
       "/channels/"
-        <> ids.channel_to_string(channel_id)
-        <> "/permissions/member/"
-        <> ids.user_to_string(user_id),
+      <> ids.channel_to_string(channel_id)
+      <> "/permissions/member/"
+      <> ids.user_to_string(user_id),
     )
     |> rest.with_query("implicit", bool_to_string(implicit))
   get_permissions_with(client, transport, request)
@@ -885,9 +885,9 @@ pub fn get_channel_role_permissions_with(
   let request =
     rest.get(
       "/channels/"
-        <> ids.channel_to_string(channel_id)
-        <> "/permissions/role/"
-        <> ids.role_to_string(role_id),
+      <> ids.channel_to_string(channel_id)
+      <> "/permissions/role/"
+      <> ids.role_to_string(role_id),
     )
     |> rest.with_query("implicit", bool_to_string(implicit))
   get_permissions_with(client, transport, request)

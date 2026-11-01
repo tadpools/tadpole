@@ -278,9 +278,7 @@ pub fn permission_lookups_use_the_bot_transport_test() {
     channel_role_request,
   ] = recorded_requests()
   guild_member_request.path
-  |> should.equal(
-    "/api/v10/guilds/" <> guild <> "/permissions/member/" <> user,
-  )
+  |> should.equal("/api/v10/guilds/" <> guild <> "/permissions/member/" <> user)
   guild_role_request.path
   |> should.equal("/api/v10/guilds/" <> guild <> "/permissions/role/" <> role)
   channel_member_request.path
