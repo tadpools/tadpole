@@ -1,23 +1,23 @@
 # Testing in Tadpole
 
-How the test suite is organised, what each layer is for, and how to add
-to it. The rules that CI enforces live in CONTRIBUTING.md; this file is
-the map.
+This guide explains how the test suite is organized, what each layer checks,
+and where to add tests. The rules CI enforces are in CONTRIBUTING.md; this
+file maps the suite.
 
 ## The three layers
 
-| Layer | Lives in | Answers | Runs |
+| Layer | Lives in | What it checks | Runs |
 | --- | --- | --- | --- |
-| Unit | `test/tadpole/`, mirroring `src/tadpole/` | does every public function do what its doc says, including each documented failure mode | always |
-| Property | `test/tadpole/property/` | do the pure cores hold their invariants for every input, not just the hand-picked ones | always |
-| Contract | `test/tadpole/contract_test.gleam` + `test/fixtures/` | do the real decoders accept exactly the payload shapes Discord documents, and reject the ones it must not | always |
+| Unit | `test/tadpole/`, mirroring `src/tadpole/` | Does each public function do what its docs promise, including documented failure modes? | Every run |
+| Property | `test/tadpole/property/` | Do pure modules hold their invariants across generated inputs? | Every run |
+| Contract | `test/tadpole/contract_test.gleam` + `test/fixtures/` | Do the production decoders accept documented payloads and reject invalid shapes? | Every run |
 
 One suite, one command:
 
     gleam test
 
-Everything is offline. No test talks to Discord; payloads are synthetic
-and canned responses stand in for HTTP.
+Everything runs offline. Tests don't contact Discord; synthetic payloads
+and canned HTTP responses stand in for the real API.
 
 ## Layout
 
@@ -76,8 +76,8 @@ The pieces:
   The label goes into failure output; `show` renders a failing input.
 - generators: `int_in(lo, hi)`, `one_of(list)`, `list_of(gen, min, max)`,
   `digit_string(min, max)`; combine with `map` and `map2`
-- a failure panics with the label, the seed, the case index, and the
-  input. Re-run the suite: it fails at the same case, every time
+- when a property fails, the test reports its label, seed, case index, and
+  input. Rerunning the suite reaches the same case every time.
 
 Conventions: name the file after the module it tests
 (`<module>_properties_test.gleam`), name every test with a `_test`
@@ -120,11 +120,11 @@ What CI runs on every PR, in order:
     gleam format                   # canonical formatting, no diff
     gleam docs build               # docs render
 
-Run them before pushing and CI is a formality.
+Run these gates before pushing; CI runs them again on every pull request.
 
 ## The live gate
 
-One test touches real Discord, and only on explicit request:
+Only one test contacts real Discord, and it runs only when you opt in:
 `test/tadpole/live_test.gleam`. Without `TADPOLE_TOKEN` set it prints a
 one-line note and passes, so CI never needs a secret and never sees a
 network. With the token set, the same suite runs CONTRIBUTING's publish
@@ -143,10 +143,10 @@ way to watch a bot run interactively.
 
 ## What the suite does not cover yet
 
-- a shard actor test with an injectable transport: the frame.parse to
-  events.decode seam is pinned by unit and contract tests, but the actor
-  loop around them is not
-- global rate-limit coordination end to end: the 429 bodies are fixture
-  documented, the executor paths are unit tested with canned responses
-- smoke tests against real Discord exist but stay out of CI by design;
-  see the README
+- **Shard actor with an injectable transport:** unit and contract tests pin
+  the `frame.parse` to `events.decode` boundary, but don't exercise the actor
+  loop around it.
+- **End-to-end global rate-limit coordination:** 429 bodies have fixtures,
+  and executor paths use canned responses in unit tests, but there is no
+  full coordination test yet.
+- **Live smoke tests:** they stay out of CI by design. See the README.

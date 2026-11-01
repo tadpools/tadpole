@@ -25,11 +25,11 @@ The map to the suite (layers, layout, how to add property tests and
 fixtures) lives in TESTING.md. The rules:
 
 1. **Every public function has at least one test** covering its primary path.
-2. **Every failure mode documented in a doc comment maps to a test**: if
-   `/// ## Failure modes` says X can happen, a test proves the error carries
-   what it claims.
-3. **No bare boolean test bodies.** A test ending in `a == b` is a test that
-   can never fail. Use `should` assertions or `let assert`:
+2. **Test every documented failure mode.** If a `/// ## Failure modes`
+   section says X can happen, add a test that checks the returned error.
+3. **Don't end tests with bare booleans.** `a == b` just returns a value;
+   Gleeunit won't treat `False` as a failure. Use `should` assertions or
+   `let assert`:
    ```gleam
    // BAD: passes even when False
    pub fn broken_test() { 1 == 2 }
@@ -38,8 +38,9 @@ fixtures) lives in TESTING.md. The rules:
    ```
 4. **Pipe precedence:** comparisons piped into `should` must be braced:
    `{ x >= 0 } |> should.be_true`.
-5. **Redaction is sacred:** any test touching rendered output checks that a
-   planted full token does not appear. See `test/tadpole/error_test.gleam`.
+5. **Check redaction:** any test that inspects rendered output must verify
+   that a planted full token does not appear. See
+   `test/tadpole/error_test.gleam`.
 
 ## Gleam style rules (learned the hard way; these bit us)
 
@@ -70,25 +71,27 @@ fixtures) lives in TESTING.md. The rules:
 
 ## Voice (Polly) requirements
 
-New user-facing strings follow three laws: clarity outranks charm (delete
-   the whimsy; if information is lost, the whimsy was load-bearing), never
-joke at the user (self-deprecating about the library is fine), and the more
-severe the failure the quieter the whimsy. Severity lives in
-`render.severity_of` and is tested; if you add an error, you assign its
-   severity. A reviewer will check the ladder, not just the code.
+Keep user-facing text clear before making it charming. Drop a flourish if
+removing it doesn't lose information. Never joke at the user's expense;
+self-deprecation about the library is fine. Match the tone to the failure:
+the more serious it is, the quieter the whimsy should be.
 
-Levels: `Light` for rate limits and heartbeat hiccups (one friendly
-line), `Actionable` for REST and decode errors (notes plus a straight
-`Try:` list), `Severe` for auth failures (zero whimsy), `Internal` for
-our bugs (apology and a report request). Pond words (the Current, lilypads, ripples) may flavor
-prose and docs, never type or function names.
+Use `Light` for rate limits and heartbeat hiccups (one friendly line),
+`Actionable` for REST and decode errors (notes and a direct `Try:` list),
+`Severe` for authentication failures (no whimsy), and `Internal` for bugs
+(apologize and invite a report). Severity is assigned in
+`render.severity_of` and covered by tests. Reviewers check that ladder along
+with the wording.
+
+Pond words such as the Current, lilypads, and ripples can flavor prose and
+docs, but never type or function names.
 
 ## Versioning
 
-Calendar versioning: `YYYY.MILESTONE.PATCH` (e.g. `2026.1.0`). MILESTONE
-counts feature milestones within the year, PATCH counts fix releases. Hex
-tooling requires an X.Y.Z-shaped version string anyway; CalVer keeps that
-shape while making the date the message.
+We use calendar versioning: `YYYY.MILESTONE.PATCH` (for example,
+`2026.1.0`). MILESTONE counts feature milestones within the year; PATCH
+counts fixes. Hex requires an X.Y.Z-shaped version string, so CalVer keeps
+that shape and still makes the date part of the version.
 
 Before the first publish there are no compatibility promises between any
 two versions: the changelog and the test suite are the contract. Breaking
@@ -102,21 +105,23 @@ Git tags use growth-stage names alongside versions (hatching, first-swim,
 froglet, frog...) as informal milestones. The CalVer number is the only
 machine-parsed version.
 
-Release flow. Hard gate first: the package is not published to Hex until
-the library can actually connect to Discord end to end: gateway connect →
-hello → heartbeat → identify → ready, plus one real REST call. Publishing
-before that is like publishing an emulator that can't emulate. Then: green
-gates → changelog entry → CalVer bump in `gleam.toml` and the matching
-`version` in `tadpole/user_agent.gleam` → optional
-growth-stage git tag → `gleam publish`, only if the gate is met.
+## Release flow
+
+Don't publish to Hex until Tadpole can complete a real gateway connection
+from connect through READY and make one real REST call. Publishing before
+that would be like shipping an emulator that can't emulate.
+
+Once that gate and CI pass, update the changelog and bump the CalVer version
+in `gleam.toml` and the matching value in `tadpole/user_agent.gleam`. Add an
+optional growth-stage git tag, then publish with `gleam publish`.
 
 ## Commit discipline
 
 - Imperative mood, present tense: `add heartbeat zombie detection`, not
   `added`/`adds`.
 - One logical change per commit; tests travel with the code they test.
-- No tokens, no payloads with real user data, ever: not in fixtures, not in
-  logs, not in examples. Fixtures are synthetic or redacted.
+- Never put tokens or real user data in fixtures, logs, or examples. Use
+  synthetic or redacted payloads instead.
 
 ## What a reviewer checks
 
