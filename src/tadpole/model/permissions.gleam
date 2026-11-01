@@ -23,6 +23,7 @@
 //// process operations.
 
 import gleam/dynamic/decode as d
+import gleam/option.{None}
 import tadpole/error.{type TadpoleError}
 import tadpole/model/decode
 
