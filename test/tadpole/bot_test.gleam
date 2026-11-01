@@ -19,6 +19,7 @@ import tadpole/error/render
 import tadpole/gateway/events
 import tadpole/gateway/shard
 import tadpole/model/emoji
+import tadpole/model/permissions
 import tadpole/rest
 import tadpole/rest/endpoints
 import tadpole/rest/execute.{type Transport}
@@ -39,6 +40,14 @@ const fake_token = "faketoken_faketoken_faketoken_faketoken_faketoken_1"
 // fixtures: invented snowflakes, same shape as the rest/endpoints tests.
 
 const channel = "742300000000000001"
+
+const guild = "742300000000000002"
+
+const user = "900000000000000123"
+
+const role = "742300000000000003"
+
+const permission_payload = "{\"permissions\":\"1180591620717411303425\"}"
 
 const message = "124400000000000009"
 
@@ -83,6 +92,21 @@ fn hand_built_bot(t: Transport) -> bot.Bot {
 
 fn channel_id(value: String) -> ids.ChannelId {
   let assert Ok(id) = ids.channel_id(value)
+  id
+}
+
+fn guild_id(value: String) -> ids.GuildId {
+  let assert Ok(id) = ids.guild_id(value)
+  id
+}
+
+fn user_id(value: String) -> ids.UserId {
+  let assert Ok(id) = ids.user_id(value)
+  id
+}
+
+fn role_id(value: String) -> ids.RoleId {
+  let assert Ok(id) = ids.role_id(value)
   id
 }
 
@@ -213,6 +237,60 @@ pub fn get_message_delegates_over_the_bot_transport_test() {
   sent_request.path
   |> should.equal("/api/v10/channels/" <> channel <> "/messages/" <> message)
   msg.content |> should.equal("quack")
+}
+
+pub fn permission_lookups_use_the_bot_transport_test() {
+  reset_recorder()
+  let tadbot = hand_built_bot(transport_ok(permission_payload))
+
+  let assert Ok(guild_member) =
+    bot.get_guild_member_permissions(tadbot, guild_id(guild), user_id(user))
+  let assert Ok(guild_role) =
+    bot.get_guild_role_permissions(tadbot, guild_id(guild), role_id(role))
+  let assert Ok(channel_member) =
+    bot.get_channel_member_permissions(
+      tadbot,
+      channel_id(channel),
+      user_id(user),
+      False,
+    )
+  let assert Ok(channel_role) =
+    bot.get_channel_role_permissions(
+      tadbot,
+      channel_id(channel),
+      role_id(role),
+      True,
+    )
+
+  permissions.to_string(guild_member)
+  |> should.equal("1180591620717411303425")
+  permissions.to_string(guild_role)
+  |> should.equal("1180591620717411303425")
+  permissions.to_string(channel_member)
+  |> should.equal("1180591620717411303425")
+  permissions.to_string(channel_role)
+  |> should.equal("1180591620717411303425")
+
+  let assert [
+    guild_member_request,
+    guild_role_request,
+    channel_member_request,
+    channel_role_request,
+  ] = recorded_requests()
+  guild_member_request.path
+  |> should.equal("/api/v10/guilds/" <> guild <> "/permissions/member/" <> user)
+  guild_role_request.path
+  |> should.equal("/api/v10/guilds/" <> guild <> "/permissions/role/" <> role)
+  channel_member_request.path
+  |> should.equal(
+    "/api/v10/channels/" <> channel <> "/permissions/member/" <> user,
+  )
+  channel_member_request.query |> should.equal(Some("implicit=false"))
+  channel_role_request.path
+  |> should.equal(
+    "/api/v10/channels/" <> channel <> "/permissions/role/" <> role,
+  )
+  channel_role_request.query |> should.equal(Some("implicit=true"))
 }
 
 pub fn get_messages_delegates_with_the_query_test() {

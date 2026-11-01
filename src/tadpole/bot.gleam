@@ -4,6 +4,8 @@
 //// The same Bot answers REST calls over its own transport:
 //// `send_message`, `reply`, `get_channel`, `get_message`, `get_messages`,
 //// `add_reaction`, `remove_own_reaction`, `get_reaction_users`,
+//// `get_guild_member_permissions`, `get_guild_role_permissions`,
+//// `get_channel_member_permissions`, `get_channel_role_permissions`,
 //// `edit_message`, `delete_message`, and `with_typing` shows a typing
 //// indicator for as long as your work runs. `stop` closes the gateway.
 //// Multi-shard fleets, handler supervision, and a stop that ends the
@@ -48,7 +50,9 @@
 //// `send_message` and `reply` fail with `RestStatus` (any non-2xx,
 //// where status 0 means no HTTP response happened at all) or with
 //// `RateLimited` once 429 retries run out. Every REST helper on Bot
-//// fails that way, `get_*` included. `stop` never fails.
+//// fails that way, `get_*` included. Permission lookups additionally
+//// return `DecodeFailed` if Discord's response is not a string bitfield.
+//// `stop` never fails.
 ////
 //// ## Lifecycle notices
 ////
@@ -81,8 +85,9 @@
 ////   needs no locks. Nothing else ever touches it.
 //// - A `Bot` is a plain record, safe to pass to other processes or send
 ////   in messages. `send_message`, `reply`, the `get_*` helpers,
-////   `edit_message`, `delete_message`, `with_typing`, and `stop` may be
-////   called from any process; each REST call is independent and blocks
+////   permission lookup helpers, `edit_message`, `delete_message`,
+////   `with_typing`, and `stop` may be called from any process; each REST
+////   call is independent and blocks
 ////   its calling process for the round trip (plus retries and
 ////   rate-limit sleeps). Every one of them runs over the bot's own
 ////   transport, which is what makes a hand-built `Bot` in a test behave
@@ -170,10 +175,13 @@ import tadpole/intent
 import tadpole/model/channel.{type Channel}
 import tadpole/model/emoji.{type Emoji}
 import tadpole/model/message.{type Message}
+import tadpole/model/permissions.{type PermissionSet}
 import tadpole/rest.{type RestClient}
 import tadpole/rest/endpoints
 import tadpole/rest/execute.{type Transport}
-import tadpole/types/ids.{type ChannelId, type MessageId, type UserId}
+import tadpole/types/ids.{
+  type ChannelId, type GuildId, type MessageId, type RoleId, type UserId,
+}
 
 /// How long between typing refreshes. Discord's indicator expires after
 /// 10 seconds and the route allows five calls per ten seconds, so eight
@@ -355,6 +363,104 @@ pub fn get_message(
   message_id: MessageId,
 ) -> Result(Message, TadpoleError) {
   endpoints.get_message_with(bot.rest, bot.transport, channel_id, message_id)
+}
+
+/// Ask Discord for a member's computed permissions across a guild. The
+/// `PermissionSet` keeps Discord's stringified bitfield intact.
+///
+/// Example: `bot.get_guild_member_permissions(tadbot, guild_id, user_id)`.
+///
+/// Fails with `RestStatus`, `RateLimited`, or `DecodeFailed` if the
+/// response does not contain a string permission bitfield. The request
+/// blocks the calling process for its HTTP round trip and retry sleeps,
+/// and uses this bot's transport.
+pub fn get_guild_member_permissions(
+  bot: Bot,
+  guild_id: GuildId,
+  user_id: UserId,
+) -> Result(PermissionSet, TadpoleError) {
+  endpoints.get_guild_member_permissions_with(
+    bot.rest,
+    bot.transport,
+    guild_id,
+    user_id,
+  )
+}
+
+/// Ask Discord for a role's computed guild permissions, combined with
+/// `@everyone` and excluding other roles and member-specific restrictions.
+///
+/// Example: `bot.get_guild_role_permissions(tadbot, guild_id, role_id)`.
+///
+/// Fails with `RestStatus`, `RateLimited`, or `DecodeFailed` if the
+/// response does not contain a string permission bitfield. The request
+/// blocks the calling process for its HTTP round trip and retry sleeps,
+/// and uses this bot's transport.
+pub fn get_guild_role_permissions(
+  bot: Bot,
+  guild_id: GuildId,
+  role_id: RoleId,
+) -> Result(PermissionSet, TadpoleError) {
+  endpoints.get_guild_role_permissions_with(
+    bot.rest,
+    bot.transport,
+    guild_id,
+    role_id,
+  )
+}
+
+/// Ask Discord for a member's computed channel permissions, including
+/// roles and member-specific overwrites. Threads use their parent
+/// channel's overwrites. `implicit` controls whether Discord applies
+/// implicit permission masking; Discord defaults it to `True`. The docs
+/// say masking is not applied when the target member is a bot.
+///
+/// Example: `bot.get_channel_member_permissions(tadbot, channel_id, user_id, True)`.
+///
+/// Fails with `RestStatus`, `RateLimited`, or `DecodeFailed` if the
+/// response does not contain a string permission bitfield. The request
+/// blocks the calling process for its HTTP round trip and retry sleeps,
+/// and uses this bot's transport.
+pub fn get_channel_member_permissions(
+  bot: Bot,
+  channel_id: ChannelId,
+  user_id: UserId,
+  implicit: Bool,
+) -> Result(PermissionSet, TadpoleError) {
+  endpoints.get_channel_member_permissions_with(
+    bot.rest,
+    bot.transport,
+    channel_id,
+    user_id,
+    implicit,
+  )
+}
+
+/// Ask Discord for a role's computed channel permissions, combined with
+/// `@everyone` and channel overwrites. Other roles and member-specific
+/// overwrites are excluded. Threads use their parent channel's overwrites.
+/// `implicit` controls whether Discord applies implicit permission masking;
+/// Discord defaults it to `True`.
+///
+/// Example: `bot.get_channel_role_permissions(tadbot, channel_id, role_id, True)`.
+///
+/// Fails with `RestStatus`, `RateLimited`, or `DecodeFailed` if the
+/// response does not contain a string permission bitfield. The request
+/// blocks the calling process for its HTTP round trip and retry sleeps,
+/// and uses this bot's transport.
+pub fn get_channel_role_permissions(
+  bot: Bot,
+  channel_id: ChannelId,
+  role_id: RoleId,
+  implicit: Bool,
+) -> Result(PermissionSet, TadpoleError) {
+  endpoints.get_channel_role_permissions_with(
+    bot.rest,
+    bot.transport,
+    channel_id,
+    role_id,
+    implicit,
+  )
 }
 
 /// GET /channels/{channel_id}/messages, one page of a channel's history.

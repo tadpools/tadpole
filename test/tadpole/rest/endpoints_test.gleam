@@ -13,6 +13,7 @@ import gleam/string
 import gleeunit/should
 import tadpole/error
 import tadpole/model/emoji
+import tadpole/model/permissions
 import tadpole/rest
 import tadpole/rest/endpoints
 import tadpole/rest/execute.{type Transport}
@@ -51,6 +52,14 @@ fn no_content_transport() -> Transport {
 // fixtures: invented snowflakes (17-19 digits)
 
 const channel = "742300000000000001"
+
+const guild = "742300000000000002"
+
+const user = "900000000000000123"
+
+const role = "742300000000000003"
+
+const permission_payload = "{\"permissions\":\"1180591620717411303425\"}"
 
 const message = "124400000000000009"
 
@@ -809,6 +818,107 @@ pub fn get_message_sends_get_test() {
   msg.content |> should.equal("quack")
 }
 
+// Computed permission routes added in Discord's October 30, 2026 API update.
+
+pub fn get_guild_member_permissions_uses_the_member_route_test() {
+  reset_recorder()
+
+  let assert Ok(permission_set) =
+    endpoints.get_guild_member_permissions_with(
+      client(),
+      transport(permission_payload),
+      guild_id(guild),
+      user_id(user),
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.method |> should.equal(http.Get)
+  sent.path
+  |> should.equal("/api/v10/guilds/" <> guild <> "/permissions/member/" <> user)
+  sent.query |> should.equal(None)
+  permissions.to_string(permission_set)
+  |> should.equal("1180591620717411303425")
+}
+
+pub fn get_guild_role_permissions_uses_the_role_route_test() {
+  reset_recorder()
+
+  let assert Ok(_) =
+    endpoints.get_guild_role_permissions_with(
+      client(),
+      transport(permission_payload),
+      guild_id(guild),
+      role_id(role),
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.method |> should.equal(http.Get)
+  sent.path
+  |> should.equal("/api/v10/guilds/" <> guild <> "/permissions/role/" <> role)
+  sent.query |> should.equal(None)
+}
+
+pub fn get_channel_member_permissions_sends_implicit_false_test() {
+  reset_recorder()
+
+  let assert Ok(_) =
+    endpoints.get_channel_member_permissions_with(
+      client(),
+      transport(permission_payload),
+      channel_id(channel),
+      user_id(user),
+      False,
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.method |> should.equal(http.Get)
+  sent.path
+  |> should.equal(
+    "/api/v10/channels/" <> channel <> "/permissions/member/" <> user,
+  )
+  sent.query |> should.equal(Some("implicit=false"))
+}
+
+pub fn get_channel_role_permissions_sends_implicit_true_test() {
+  reset_recorder()
+
+  let assert Ok(_) =
+    endpoints.get_channel_role_permissions_with(
+      client(),
+      transport(permission_payload),
+      channel_id(channel),
+      role_id(role),
+      True,
+    )
+
+  let assert [sent] = recorded_requests()
+  sent.method |> should.equal(http.Get)
+  sent.path
+  |> should.equal(
+    "/api/v10/channels/" <> channel <> "/permissions/role/" <> role,
+  )
+  sent.query |> should.equal(Some("implicit=true"))
+}
+
+pub fn get_channel_permission_errors_keep_the_route_test() {
+  reset_recorder()
+
+  let assert Error(error.RestStatus(route, 403, _, _)) =
+    endpoints.get_channel_role_permissions_with(
+      client(),
+      fn(request) {
+        record_request(request)
+        Ok(response.Response(status: 403, headers: [], body: "{}"))
+      },
+      channel_id(channel),
+      role_id(role),
+      True,
+    )
+
+  error.route_to_string(route)
+  |> should.equal("GET /channels/" <> channel <> "/permissions/role/" <> role)
+}
+
 // POST /channels/{id}/messages
 
 pub fn send_message_posts_json_body_test() {
@@ -958,6 +1068,21 @@ pub fn malformed_success_body_maps_to_decode_failed_test() {
 
 fn channel_id(value: String) -> ids.ChannelId {
   let assert Ok(id) = ids.channel_id(value)
+  id
+}
+
+fn guild_id(value: String) -> ids.GuildId {
+  let assert Ok(id) = ids.guild_id(value)
+  id
+}
+
+fn user_id(value: String) -> ids.UserId {
+  let assert Ok(id) = ids.user_id(value)
+  id
+}
+
+fn role_id(value: String) -> ids.RoleId {
+  let assert Ok(id) = ids.role_id(value)
   id
 }
 

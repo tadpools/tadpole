@@ -1,13 +1,13 @@
 # Changelog
 
-Versions are calendar-based (YYYY.MILESTONE.PATCH). Before the first
-publish there are no compatibility promises; the tests and this changelog
-are the contract.
+Versions use the calendar-based format `YYYY.MILESTONE.PATCH`. Before the
+first release, compatibility between versions isn't guaranteed; the tests
+and this changelog define the contract.
 
 ## 2026.3.0 - unreleased
 
-Hardening and docs alignment: places where the docs said something the
-library did not do yet.
+This milestone closes gaps between Discord's documentation and Tadpole's
+behavior, while hardening the gateway and REST layers.
 
 - gateway frame parsing is hardened against hostile input. Payloads
   that are not a decodable envelope (wrong op types, arrays, scalars,
@@ -49,11 +49,11 @@ library did not do yet.
   docs now say (tadpole/gateway/identify_gate).
 - reconnect backoff caps the doubling instead of raising the power
   first. Returned milliseconds are unchanged for every input, but the
-  old version multiplied out the full exponent before discarding it,
-  one bignum multiply per attempt, on the shard actor's own process
-  (159s to answer 60000 at 1,000,000 attempts). The shard only clears
-  its attempt counter on HELLO, so that count grows while the gateway
-  stays unreachable (tadpole/gateway). (#34)
+  old version multiplied out the full exponent before applying the cap,
+  doing one big-integer multiply per attempt on the shard actor itself.
+  At 1,000,000 attempts, returning 60000 took 159 seconds. The counter only
+  resets on HELLO, so it keeps growing while the gateway is unreachable
+  (tadpole/gateway). (#34)
 - REST requests can carry query parameters. `RestRequest` grows a `query`
   field and `rest.with_query` adds one, kept out of `path` on purpose:
   Discord buckets by route and the query string is not part of the route,
@@ -140,16 +140,21 @@ library did not do yet.
   404 from Discord, not an empty list.
 - the README and the module directory table no longer describe
   `rest/endpoints` as three routes. (#38)
+- Discord added four computed-permission routes on October 30, 2026.
+  `rest/endpoints` and `bot` now expose guild-member, guild-role,
+  channel-member, and channel-role lookups. Channel lookups expose the
+  `implicit` masking option. Their responses stay in a string-backed
+  `PermissionSet`, so wider bitfields aren't narrowed to an integer. (#53)
 
 ## 2026.2.0 - first-swim (published 2026-09-10)
 
-The first vertical slice: a bot can connect to the gateway, receive
-events, and make REST calls. Tests run offline against fixtures, a
-seeded property harness, and an env-gated live gate (TADPOLE_TOKEN set
-runs the publish gate from CONTRIBUTING; unset, it skips). Published
-after the live gate passed twice over: REST authentication and a typed
-READY over a real gateway connection, plus a live forced-reconnect
-resume verified end to end.
+The first working slice: a bot can connect to the gateway, receive
+events, and make REST calls. Offline tests use fixtures, a seeded property
+harness, and an environment-gated live test. Set `TADPOLE_TOKEN` to run the
+publish gate from CONTRIBUTING; without it, the test skips. The live gate
+passed twice before publication, covering REST authentication, a typed
+READY event over a real gateway connection, and a forced reconnect that
+resumed end to end.
 
 - model objects and decoders: user, message (full form plus the partial
   MESSAGE_UPDATE form), guild with its unavailable form, channel, and
@@ -218,5 +223,5 @@ resume verified end to end.
   detection, event dispatch table, REST request builders and rate-limit
   header parsing, config validation.
 
-(The above shipped as part of 2026.2.0. The section is kept for the next
+(The items above shipped with 2026.2.0. This section remains for the next
 round of work.)

@@ -4,22 +4,22 @@ A Discord library for Gleam. Every frog starts as a tadpole.
 
 ![](assets/tadpole.gif)
 
-Not on Hex yet. See [where this stands](#where-this-stands).
+Tadpole isn't on Hex yet. See [where this stands](#where-this-stands).
 
 ## install
 
 Gleam 1.18+ and Erlang/OTP.
 
-The code on `main` needs 2026.3.0, which is not published. Add it to your
-`gleam.toml` as a git dependency until it is:
+The `main` branch uses 2026.3.0, which hasn't been published yet. Until then,
+add Tadpole as a Git dependency in `gleam.toml`:
 
 ```toml
 [dependencies]
 tadpole = { git = "https://github.com/tadpools/tadpole", ref = "main" }
 ```
 
-Hex carries 2026.2.0, which predates the intent sum type and will not compile
-the example below.
+Hex still has 2026.2.0. It predates the intent sum type, so the example below
+won't compile against that release.
 
 Then set the bot token:
 
@@ -27,13 +27,13 @@ Then set the bot token:
 
 ## a whole bot
 
-Echoes back every message it sees that did not come from a bot.
+Echoes each non-empty message it receives unless the author is a bot.
 
 Save this as `dev/echo_bot.gleam` in a clone and run it with
-`gleam run -m echo_bot`. `dev/` is gitignored because it holds token-driven
-scripts, so the copy below is the one to copy. The same program lives at
-`test/examples/echo_bot.gleam`, which `gleam test` compiles, so it cannot go
-stale the way a listing in prose can.
+`gleam run -m echo_bot`. The `dev/` directory is gitignored because it holds
+token-driven scripts. The same program lives in
+`test/examples/echo_bot.gleam`, where `gleam test` compiles it; a test also
+checks that this README listing stays in sync.
 
 ```gleam
 import gleam/io
@@ -124,11 +124,11 @@ fn join_names(names: List(intent.Intent)) -> String {
 fn env(name: String) -> Result(String, Nil)
 ```
 
-Message Content is a privileged intent. Turn it on in the Developer Portal
-under Bot, Privileged Gateway Intents, or drop it from the config. Without
-the toggle Discord closes the connection with code 4014 as soon as the bot
-identifies. The program prints a reminder before that happens. It cannot
-check the portal for you.
+Message Content is a privileged intent. Enable it in the Developer Portal
+under Bot → Privileged Gateway Intents, or remove it from the config. If the
+toggle is off, Discord closes the gateway connection with code 4014 when the
+bot identifies. The example warns you before connecting, but it can't check
+the portal setting itself.
 
 ## what is here
 
@@ -145,15 +145,16 @@ check the portal for you.
   whether to resume or identify fresh, and backs off between attempts.
 - **Rate limits read at runtime.** Buckets, remaining counts and retry
   windows come from response headers and 429 bodies. No hardcoded table.
-- **REST.** Read a channel, read history with a cursor, fetch a message,
-  send, reply, edit, delete, react, type.
+- **REST calls.** Read a channel, page through its message history, fetch a
+  message, inspect computed guild or channel permissions, and send, reply,
+  edit, delete, react, or show a typing indicator.
 
 `tadpole/bot` is a thin layer over the same public modules it drives, so
 dropping down to `tadpole/rest/execute` or the shard is always available.
 
 ## not here yet
 
-Do not assume any of these:
+These features aren't in this version yet:
 
 - multi-shard. One shard. A config asking for more is refused with
   `ShardingNotSupported` before anything connects.
@@ -171,26 +172,26 @@ Everything is tested against recorded payloads and canned HTTP responses.
 The one test that touches real Discord is gated on `TADPOLE_TOKEN`, so CI
 needs no secret and never sees a network.
 
-That gate has been run by hand and passes: REST authentication, a gateway
-connect through READY, and a forced reconnect that comes back RESUMED. It
-does not run from CI.
+The live gate has passed manual runs for REST authentication, a gateway
+connection through READY, and a forced reconnect that returned RESUMED. It
+doesn't run in CI.
 
-None of the REST routes added in 2026.3.0 has been exercised against real
-Discord. They are built from Discord's documented shapes and pinned by
-fixtures, which is a weaker claim than having run them.
+The REST routes added in 2026.3.0 haven't yet been exercised against live
+Discord. They're based on Discord's documented payloads and covered by
+fixtures, which is useful but not the same as a live run.
 
 ## running the tests
 
     gleam test
 
-Three layers, unit, property and contract. TESTING.md is the map, including
-how to add to each.
+The suite has unit, property, and contract tests. TESTING.md explains what
+each layer covers and how to add to it.
 
 With a token set, the live gate runs too:
 
     TADPOLE_TOKEN="..." gleam test
 
-Smoke runs are by hand, from `dev/`, which is not in the published tree:
+For manual smoke runs, use the scripts in the gitignored `dev/` directory:
 
     gleam run -m echo_bot     # the echo bot above
     gleam run -m smoke_gw     # one shard, print events for 60s, exit
@@ -202,5 +203,6 @@ Windows: the Erlang installer does not add itself to PATH. Add
 
 ## contributing
 
-CONTRIBUTING.md. Zero compiler warnings, a test for everything public, and
-nothing described in this README before it has one.
+For contribution rules, see CONTRIBUTING.md. CI requires zero compiler
+warnings, tests for public functions, and README claims backed by working
+code.
