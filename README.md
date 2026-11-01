@@ -146,7 +146,8 @@ check the portal for you.
 - **Rate limits read at runtime.** Buckets, remaining counts and retry
   windows come from response headers and 429 bodies. No hardcoded table.
 - **REST.** Read a channel, read history with a cursor, fetch a message,
-  send, reply, edit, delete, react, type.
+  inspect computed permissions at guild or channel scope, send, reply,
+  edit, delete, react, type.
 
 `tadpole/bot` is a thin layer over the same public modules it drives, so
 dropping down to `tadpole/rest/execute` or the shard is always available.

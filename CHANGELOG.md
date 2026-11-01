@@ -140,6 +140,12 @@ library did not do yet.
   404 from Discord, not an empty list.
 - the README and the module directory table no longer describe
   `rest/endpoints` as three routes. (#38)
+- Discord added four computed-permission routes on October 30, 2026.
+  `rest/endpoints` and `bot` now expose guild member, guild role, channel
+  member, and channel role permission lookups. Channel lookups expose the
+  `implicit` masking option, and the response stays a string-backed
+  `PermissionSet` so wider permission bitfields are not narrowed to an
+  integer. (#53)
 
 ## 2026.2.0 - first-swim (published 2026-09-10)
 

@@ -23,6 +23,10 @@
 ////   the anchor and the limit; `MessagePage` carries the cursor for the
 ////   next page back.
 //// - `get_channel` / `get_message`: fetch one object by id.
+//// - the four `get_*_permissions` functions: ask Discord for a member's
+////   or role's computed permissions at guild or channel scope. The
+////   returned [`tadpole/model/permissions`](../model/permissions.html)
+////   keeps the bitfield as Discord's decimal string.
 //// - `add_reaction` / `remove_own_reaction` / `get_reaction_users`:
 ////   reactions, over a [`tadpole/model/emoji`](../model/emoji.html)
 ////   `Emoji`. The emoji is encoded here, which is not something to leave
@@ -40,6 +44,10 @@
 //// | `get_channel` | GET /channels/{channel_id} | `Channel` |
 //// | `get_message` | GET /channels/{channel_id}/messages/{message_id} | `Message` |
 //// | `get_messages` | GET /channels/{channel_id}/messages | `MessagePage` |
+//// | `get_guild_member_permissions` | GET /guilds/{guild_id}/permissions/member/{user_id} | `PermissionSet` |
+//// | `get_guild_role_permissions` | GET /guilds/{guild_id}/permissions/role/{role_id} | `PermissionSet` |
+//// | `get_channel_member_permissions` | GET /channels/{channel_id}/permissions/member/{user_id} | `PermissionSet` |
+//// | `get_channel_role_permissions` | GET /channels/{channel_id}/permissions/role/{role_id} | `PermissionSet` |
 //// | `add_reaction` | PUT /channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me | `Nil` (204) |
 //// | `remove_own_reaction` | DELETE /channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me | `Nil` (204) |
 //// | `get_reaction_users` | GET /channels/{channel_id}/messages/{message_id}/reactions/{emoji} | `ReactionUsers` |
@@ -105,10 +113,13 @@ import tadpole/model/decode
 /// local of that name would shadow the module.
 import tadpole/model/emoji.{type Emoji, to_path_segment}
 import tadpole/model/message.{type Message}
+import tadpole/model/permissions.{type PermissionSet}
 import tadpole/model/user.{type User}
 import tadpole/rest
 import tadpole/rest/execute.{type Transport}
-import tadpole/types/ids.{type ChannelId, type MessageId, type UserId}
+import tadpole/types/ids.{
+  type ChannelId, type GuildId, type MessageId, type RoleId, type UserId,
+}
 
 /// Which slice of a channel's history to read.
 ///
@@ -679,6 +690,224 @@ pub fn get_message_with(
   {
     Ok(response) -> message.from_json(response.body)
     Error(e) -> Error(e)
+  }
+}
+
+/// Ask Discord for a member's computed guild permissions. Discord combines
+/// the member's roles with `@everyone`; the result is retained as a
+/// string-backed `PermissionSet`.
+///
+/// Example: `get_guild_member_permissions(client, guild_id, user_id)`.
+///
+/// Fails with `RestStatus` for a non-2xx response, `RateLimited` when 429
+/// retries run out, or `DecodeFailed` if the response is not a permission
+/// object. The request blocks its calling process for the HTTP round trip
+/// and any retry sleeps.
+pub fn get_guild_member_permissions(
+  client: rest.RestClient,
+  guild_id: GuildId,
+  user_id: UserId,
+) -> Result(PermissionSet, TadpoleError) {
+  get_guild_member_permissions_with(
+    client,
+    execute.httpc_transport(client.timeout_ms),
+    guild_id,
+    user_id,
+  )
+}
+
+/// `get_guild_member_permissions` over an injected transport.
+///
+/// Example: `get_guild_member_permissions_with(client, transport, guild_id, user_id)`.
+///
+/// Fails like `get_guild_member_permissions`. The request blocks its
+/// calling process for the HTTP round trip and any retry sleeps.
+pub fn get_guild_member_permissions_with(
+  client: rest.RestClient,
+  transport: Transport,
+  guild_id: GuildId,
+  user_id: UserId,
+) -> Result(PermissionSet, TadpoleError) {
+  get_permissions_with(
+    client,
+    transport,
+    rest.get(
+      "/guilds/"
+        <> ids.guild_to_string(guild_id)
+        <> "/permissions/member/"
+        <> ids.user_to_string(user_id),
+    ),
+  )
+}
+
+/// Ask Discord for a role's computed guild permissions, combined with
+/// `@everyone`. Other roles and member-specific restrictions are not part
+/// of this result.
+///
+/// Example: `get_guild_role_permissions(client, guild_id, role_id)`.
+///
+/// Fails with `RestStatus` for a non-2xx response, `RateLimited` when 429
+/// retries run out, or `DecodeFailed` if the response is not a permission
+/// object. The request blocks its calling process for the HTTP round trip
+/// and any retry sleeps.
+pub fn get_guild_role_permissions(
+  client: rest.RestClient,
+  guild_id: GuildId,
+  role_id: RoleId,
+) -> Result(PermissionSet, TadpoleError) {
+  get_guild_role_permissions_with(
+    client,
+    execute.httpc_transport(client.timeout_ms),
+    guild_id,
+    role_id,
+  )
+}
+
+/// `get_guild_role_permissions` over an injected transport.
+///
+/// Example: `get_guild_role_permissions_with(client, transport, guild_id, role_id)`.
+///
+/// Fails like `get_guild_role_permissions`. The request blocks its
+/// calling process for the HTTP round trip and any retry sleeps.
+pub fn get_guild_role_permissions_with(
+  client: rest.RestClient,
+  transport: Transport,
+  guild_id: GuildId,
+  role_id: RoleId,
+) -> Result(PermissionSet, TadpoleError) {
+  get_permissions_with(
+    client,
+    transport,
+    rest.get(
+      "/guilds/"
+        <> ids.guild_to_string(guild_id)
+        <> "/permissions/role/"
+        <> ids.role_to_string(role_id),
+    ),
+  )
+}
+
+/// Ask Discord for a member's computed channel permissions, including
+/// roles and member-specific overwrites. Thread calculations use the
+/// parent channel's overwrites. `implicit` controls whether Discord applies
+/// implicit permission masking and is sent explicitly in the query; Discord
+/// defaults it to `True`. The docs say masking is not applied when the
+/// target member is a bot. The caller needs `VIEW_CHANNEL`, plus `CONNECT`
+/// for voice and stage channels.
+///
+/// Example: `get_channel_member_permissions(client, channel_id, user_id, True)`.
+///
+/// Fails with `RestStatus` for a non-2xx response, `RateLimited` when 429
+/// retries run out, or `DecodeFailed` if the response is not a permission
+/// object. The request blocks its calling process for the HTTP round trip
+/// and any retry sleeps.
+pub fn get_channel_member_permissions(
+  client: rest.RestClient,
+  channel_id: ChannelId,
+  user_id: UserId,
+  implicit: Bool,
+) -> Result(PermissionSet, TadpoleError) {
+  get_channel_member_permissions_with(
+    client,
+    execute.httpc_transport(client.timeout_ms),
+    channel_id,
+    user_id,
+    implicit,
+  )
+}
+
+/// `get_channel_member_permissions` over an injected transport.
+///
+/// Example: `get_channel_member_permissions_with(client, transport, channel_id, user_id, False)`.
+///
+/// Fails like `get_channel_member_permissions`. The request blocks its
+/// calling process for the HTTP round trip and any retry sleeps.
+pub fn get_channel_member_permissions_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  user_id: UserId,
+  implicit: Bool,
+) -> Result(PermissionSet, TadpoleError) {
+  let request =
+    rest.get(
+      "/channels/"
+        <> ids.channel_to_string(channel_id)
+        <> "/permissions/member/"
+        <> ids.user_to_string(user_id),
+    )
+    |> rest.with_query("implicit", bool_to_string(implicit))
+  get_permissions_with(client, transport, request)
+}
+
+/// Ask Discord for the specified role's computed channel permissions,
+/// combined with `@everyone` and channel overwrites. Other roles and
+/// member-specific overwrites are excluded. Threads use their parent
+/// channel's overwrites. `implicit` controls Discord's implicit permission
+/// masking and is sent explicitly in the query; Discord defaults it to
+/// `True`. The caller needs `VIEW_CHANNEL`, plus `CONNECT` for voice and
+/// stage channels.
+///
+/// Example: `get_channel_role_permissions(client, channel_id, role_id, True)`.
+///
+/// Fails with `RestStatus` for a non-2xx response, `RateLimited` when 429
+/// retries run out, or `DecodeFailed` if the response is not a permission
+/// object. The request blocks its calling process for the HTTP round trip
+/// and any retry sleeps.
+pub fn get_channel_role_permissions(
+  client: rest.RestClient,
+  channel_id: ChannelId,
+  role_id: RoleId,
+  implicit: Bool,
+) -> Result(PermissionSet, TadpoleError) {
+  get_channel_role_permissions_with(
+    client,
+    execute.httpc_transport(client.timeout_ms),
+    channel_id,
+    role_id,
+    implicit,
+  )
+}
+
+/// `get_channel_role_permissions` over an injected transport.
+///
+/// Example: `get_channel_role_permissions_with(client, transport, channel_id, role_id, False)`.
+///
+/// Fails like `get_channel_role_permissions`. The request blocks its
+/// calling process for the HTTP round trip and any retry sleeps.
+pub fn get_channel_role_permissions_with(
+  client: rest.RestClient,
+  transport: Transport,
+  channel_id: ChannelId,
+  role_id: RoleId,
+  implicit: Bool,
+) -> Result(PermissionSet, TadpoleError) {
+  let request =
+    rest.get(
+      "/channels/"
+        <> ids.channel_to_string(channel_id)
+        <> "/permissions/role/"
+        <> ids.role_to_string(role_id),
+    )
+    |> rest.with_query("implicit", bool_to_string(implicit))
+  get_permissions_with(client, transport, request)
+}
+
+fn get_permissions_with(
+  client: rest.RestClient,
+  transport: Transport,
+  request: rest.RestRequest,
+) -> Result(PermissionSet, TadpoleError) {
+  case execute.send(client, request, transport) {
+    Ok(response) -> permissions.from_json(response.body)
+    Error(e) -> Error(e)
+  }
+}
+
+fn bool_to_string(value: Bool) -> String {
+  case value {
+    True -> "true"
+    False -> "false"
   }
 }
 

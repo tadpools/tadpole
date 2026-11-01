@@ -37,19 +37,20 @@
 //// | Module | What it owns | Audience |
 //// | --- | --- | --- |
 //// | [`tadpole`](tadpole.html) | config builder: `new`, `with_*`, `validate`, `describe_config` | beginner |
-//// | [`tadpole/bot`](tadpole/bot.html) | the runner: `start`, `run`, `send_message`, `reply`, `stop`; one shard | beginner |
+//// | [`tadpole/bot`](tadpole/bot.html) | the runner: `start`, `run`, REST helpers, computed permission lookups, `stop`; one shard | beginner |
 //// | [`tadpole/guide`](tadpole/guide.html) | the walkthrough | beginner |
 //// | [`tadpole/gateway/events`](tadpole/gateway/events.html) | the typed `Event` type: Ready, MessageCreate, Unknown, ... | beginner |
 //// | [`tadpole/intent`](tadpole/intent.html) | typed intent variants, privileged-intent detection | beginner |
 //// | [`tadpole/error`](tadpole/error.html) | every failure as a typed value | beginner |
 //// | [`tadpole/error/render`](tadpole/error/render.html) | errors to human text; token redacted everywhere | beginner |
 //// | [`tadpole/types/ids`](tadpole/types/ids.html) | opaque IDs, so a UserId cannot go where a GuildId goes | beginner |
-//// | [`tadpole/rest/endpoints`](tadpole/rest/endpoints.html) | users, channels, messages: read history, send, reply, edit, delete | beginner |
+//// | [`tadpole/rest/endpoints`](tadpole/rest/endpoints.html) | users, channels, messages, computed guild/channel permissions | beginner |
 //// | [`tadpole/model/user`](tadpole/model/user.html) | the user object | beginner |
 //// | [`tadpole/model/message`](tadpole/model/message.html) | the message object and MESSAGE_UPDATE's partial form | beginner |
 //// | [`tadpole/model/guild`](tadpole/model/guild.html) | the guild object and the unavailable stub | beginner |
 //// | [`tadpole/model/channel`](tadpole/model/channel.html) | the channel object, trimmed | beginner |
 //// | [`tadpole/model/emoji`](tadpole/model/emoji.html) | an emoji for reactions, unicode or custom, encoded for the route | beginner |
+//// | [`tadpole/model/permissions`](tadpole/model/permissions.html) | computed permission bitfields kept as decimal strings | beginner |
 //// | [`tadpole/gateway/shard`](tadpole/gateway/shard.html) | one gateway connection, end to end | internals |
 //// | [`tadpole/gateway/transport`](tadpole/gateway/transport.html) | the stratus websocket behind a wall | internals |
 //// | [`tadpole/gateway/frame`](tadpole/gateway/frame.html) | frame envelope parsing and building: `{op, d, s, t}` | internals |
